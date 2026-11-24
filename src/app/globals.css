@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/* Design system: vedi docs/DESIGN_SYSTEM.md (principi in docs/DESIGN.md).
+   Palette sobria, bordi sottili, ombre soffici, raggi coerenti. L'accento rosso (#e01f25 da technosim25.com)
+   è riservato ad azioni principali e stato attivo; il verde (#3f843e) a esiti positivi. */
+:root {
+  --background: #f6f6f7;
+  --surface: #ffffff;
+  --border: #e8e8ec;
+  --foreground: #0e0e10;
+  --muted: #6c6c78;
+  --brand: #e01f25;
+  --brand-hover: #c21a20;
+  --brand-soft: #fdecec;
+  --success: #3f843e;
+  --success-soft: #e9f3e9;
+  --warning-soft: #fff4d6;
+  --sidebar: #0a0a0b;
+
+  /* Raggi: controlli 10px, card 16px, modali 20px */
+  --radius-control: 0.625rem;
+  --radius-card: 1rem;
+  --radius-modal: 1.25rem;
+
+  /* Ombre: profondità senza farsi notare */
+  --shadow-card: 0 1px 2px rgb(16 16 24 / 0.04), 0 0 0 1px rgb(16 16 24 / 0.02);
+  --shadow-pop: 0 1px 2px rgb(16 16 24 / 0.06), 0 12px 32px -8px rgb(16 16 24 / 0.18);
+
+  /* Movimento: breve, uniforme */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration: 180ms;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-sidebar: var(--sidebar);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+  --radius-modal: var(--radius-modal);
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss03";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+::selection { background: var(--brand-soft); color: var(--foreground); }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Ingresso delicato dei contenuti di pagina (unico effetto di scena) */
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rise-in { animation: rise-in 360ms var(--ease-out) both; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in { from { opacity: 0; transform: translate(-50%, -48%) scale(0.98); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
+}
