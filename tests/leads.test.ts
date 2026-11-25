@@ -35,11 +35,11 @@ describe("upsert_lead (SQL)", () => {
   const up = async (p: object) => (await db.query<{ id: string }>("select upsert_lead($1::jsonb) as id", [JSON.stringify(p)])).rows[0].id;
   const lead = () => { const m = mapLead(REAL); if (!m.ok || m.kind !== "lead") throw new Error("mapper"); return m.lead; };
 
-  it("crea contatto B2B, azienda, nota e trattativa nella prima fase B2B", async () => {
+  it("crea contatto, azienda, nota e scheda evento in Da contattare", async () => {
     const opp = await up(lead());
-    const o = (await db.query<{ name: string; event_type: string; attendees: number; source: string; stage: string; contact_id: string; company_id: string }>(
-      "select o.name,o.event_type,o.attendees,o.source,s.name as stage,o.contact_id,o.company_id from opportunities o join pipeline_stages s on s.id=o.stage_id where o.id=$1", [opp])).rows[0];
-    expect(o).toMatchObject({ name: "Azienda Srl — Team building", event_type: "Team building", attendees: 25, source: "meta_lead_ads", stage: "Nuovo contatto" });
+    const o = (await db.query<{ name: string; event_type: string; attendees: number; source: string; kind: string; stage: string; contact_id: string; company_id: string }>(
+      "select o.name,o.event_type,o.attendees,o.source,o.kind,s.name as stage,o.contact_id,o.company_id from opportunities o join pipeline_stages s on s.id=o.stage_id where o.id=$1", [opp])).rows[0];
+    expect(o).toMatchObject({ name: "Azienda Srl — Team building", event_type: "Team building", attendees: 25, source: "meta_lead_ads", kind: "event", stage: "Da contattare" });
     const c = (await db.query<{ kind: string; source: string; attribution_status: string; last_name: string }>("select kind,source,attribution_status,last_name from contacts where id=$1", [o.contact_id])).rows[0];
     expect(c).toEqual({ kind: "b2b", source: "meta_lead_ads", attribution_status: "marketing", last_name: "Verdi" });
     expect((await db.query("select 1 from company_contacts where company_id=$1 and contact_id=$2", [o.company_id, o.contact_id])).rows).toHaveLength(1);

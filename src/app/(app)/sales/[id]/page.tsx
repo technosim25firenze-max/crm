@@ -13,7 +13,7 @@ import { TaskList, type TaskItem } from "@/components/task-list";
 import { RecordPaymentButton } from "@/components/finance-forms";
 import { deleteOpportunity } from "@/lib/actions/sales";
 import { loadPeople, signDocuments } from "@/lib/people";
-import { outstandingCents, summarizePayments, type PaymentRow } from "@/lib/finance";
+import { opportunityCollectedCents, outstandingCents, type PaymentRow } from "@/lib/finance";
 import { formatDate, formatDateTime, formatEuro } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
 import type { Activity, Doc, Note } from "@/lib/types";
@@ -33,9 +33,10 @@ export default async function OpportunityPage({ params, searchParams }: { params
   const supabase = await createClient();
 
   const { data: o } = await supabase.from("opportunities")
-    .select("*,pipelines(kind,name),pipeline_stages(name,kind),contacts(id,display_name),companies(id,name)").eq("id", id).maybeSingle();
+    .select("*,pipeline_stages(name,kind),contacts(id,display_name),companies(id,name),bookings(id,source,paid_cents)").eq("id", id).maybeSingle();
   if (!o) notFound();
-  const kind = (o.pipelines as unknown as { kind: "b2b" | "b2c" }).kind;
+  const kind = o.kind as "individual" | "event";
+  const booking = o.bookings as unknown as { id: string; source: string; paid_cents: number } | null;
   const stage = o.pipeline_stages as unknown as { name: string; kind: string };
   const contact = o.contacts as unknown as { id: string; display_name: string } | null;
   const company = o.companies as unknown as { id: string; name: string } | null;
@@ -104,12 +105,12 @@ export default async function OpportunityPage({ params, searchParams }: { params
     body = <DocumentsPanel parent={{ opportunity_id: id }} docs={docs} signed={await signDocuments(supabase, docs)} canModerate={canModerate} />;
   } else if (tab === "payments") {
     const [{ data: pays }, { data: services }] = await Promise.all([
-      supabase.from("payments").select("id,kind,amount_cents,vat_rate,method,paid_at,reference").eq("opportunity_id", id).order("paid_at", { ascending: false }),
+      supabase.from("payments").select("id,kind,amount_cents,vat_rate,method,paid_at,reference,source").eq("opportunity_id", id).order("paid_at", { ascending: false }),
       supabase.from("services").select("id,name,vat_rate").eq("active", true).order("name"),
     ]);
-    const rows = (pays ?? []) as (PaymentRow & { id: string; reference: string | null })[];
-    const collected = summarizePayments(rows).grossCents;
-    const agreed = o.agreed_value_cents ?? 0;
+    const rows = (pays ?? []) as (PaymentRow & { id: string; reference: string | null; source: string })[];
+    const collected = opportunityCollectedCents(rows, booking);
+    const agreed = o.agreed_value_cents ?? o.expected_value_cents ?? 0;
     body = (
       <div className="space-y-4">
         <Card className="grid gap-4 p-4 sm:grid-cols-3">
@@ -144,15 +145,16 @@ export default async function OpportunityPage({ params, searchParams }: { params
     <>
       <PageHeader title={o.name}
         actions={<>
-          <EditOpportunityButton kind={kind} companies={companiesRes.data ?? []}
-            def={{ id, name: o.name, contact: contact ? { id: contact.id, name: contact.display_name } : null, company_id: o.company_id, expected_value_cents: o.expected_value_cents, agreed_value_cents: o.agreed_value_cents,
+          <EditOpportunityButton companies={companiesRes.data ?? []}
+            def={{ id, name: o.name, kind, contact: contact ? { id: contact.id, name: contact.display_name } : null, company_id: o.company_id, expected_value_cents: o.expected_value_cents, agreed_value_cents: o.agreed_value_cents,
               probability: o.probability, attendees: o.attendees, expected_close_date: o.expected_close_date, event_date: o.event_date, event_type: o.event_type, closed: !!o.closed_at && stage.kind === "won" }} />
           {canModerate && <ConfirmButton label={t.common.delete} title={t.sales.deleteTitle} body={t.sales.deleteBody} action={deleteOpportunity.bind(null, id)} />}
         </>} />
       <div className="-mt-3 mb-5 flex flex-wrap items-center gap-3 text-sm text-muted">
-        <Badge>{t.sales[kind]}</Badge>
+        <Badge>{t.sales.kinds[kind]}</Badge>
+        {booking && <Link href={`/bookings/${booking.id}`} className="underline">{t.sales.fromBooking}</Link>}
         <Badge tone={stage.kind === "won" ? "success" : stage.kind === "lost" ? "brand" : "neutral"}>{stage.name}</Badge>
-        <StageSelect id={id} stages={(stagesRes.data ?? []) as { id: string; name: string; kind: string }[]} current={o.stage_id} />
+        <StageSelect id={id} name={o.name} totalCents={o.agreed_value_cents ?? o.expected_value_cents} canPay={finance} stages={(stagesRes.data ?? []) as { id: string; name: string; kind: string }[]} current={o.stage_id} />
       </div>
       <Tabs items={available.map((k) => ({ href: k === "overview" ? base : `${base}?tab=${k}`, label: t.sales.tabs[k], active: tab === k }))} />
       {body}

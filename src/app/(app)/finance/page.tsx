@@ -58,7 +58,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   if (tab === "summary") {
     // Residui: trattative acquisite e prenotazioni non annullate.
     const [{ data: won }, { data: bks }, { data: op }, { data: bp }] = await Promise.all([
-      supabase.from("opportunities").select("id,name,agreed_value_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "won").gt("agreed_value_cents", 0).limit(500),
+      supabase.from("opportunities").select("id,name,agreed_value_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "won").gt("agreed_value_cents", 0).is("booking_id", null).limit(500), // le schede nate da prenotazioni sono già nel residuo delle prenotazioni
       supabase.from("bookings").select("id,customer_name,starts_at,total_cents,paid_cents,status,source").eq("is_test", false).in("status", ["pending", "confirmed", "completed"]).gt("total_cents", 0).limit(500),
       // Incassi collegati a trattative/prenotazioni, caricati in parallelo e abbinati qui sotto (evita query in sequenza).
       supabase.from("payments").select("opportunity_id,kind,amount_cents").not("opportunity_id", "is", null).limit(5000),

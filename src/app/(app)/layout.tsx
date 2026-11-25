@@ -8,7 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = await getProfile();
   const items: (NavItem & { show: boolean })[] = [
     { key: "dashboard", href: "/dashboard", match: ["/dashboard"], show: true },
-    { key: "contacts", href: "/contacts", match: ["/contacts", "/companies", "/leads"], show: true },
+    { key: "contacts", href: "/contacts", match: ["/contacts", "/companies"], show: true },
     { key: "sales", href: "/sales", match: ["/sales"], show: true },
     { key: "bookings", href: "/bookings", match: ["/bookings"], show: true },
     { key: "finance", href: "/finance", match: ["/finance"], show: can(profile.role, "finance.view") },

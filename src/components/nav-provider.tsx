@@ -22,7 +22,7 @@ export function PageContent({ children }: { children: React.ReactNode }) {
   const nav = useNav();
   const busy = !!nav?.pending;
   return (
-    <main aria-busy={busy} className="rise-in mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:px-10 md:py-10">
+    <main aria-busy={busy} className="rise-in w-full flex-1 px-4 py-8 md:px-10 md:py-10">
       {busy && <div className="progress-bar" aria-hidden="true" />}
       <div className={busy ? "pointer-events-none opacity-50 transition-opacity duration-200" : "transition-opacity duration-200"}>{children}</div>
     </main>

@@ -8,13 +8,18 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { t } from "@/lib/i18n/it";
+import { romeLocalToUtc } from "@/lib/format";
 import { dateField, euroField, intField, uuid } from "./fields";
 import { resolveContact } from "./contact-link";
 import { errorState, logActivity, parseForm, type ActionState } from "./shared";
 
 const text = (n = 200) => z.string().max(n, t.validation.tooLong).optional();
 
+const KINDS = ["individual", "event"] as const;
+const METHODS = ["cash", "card_pos", "bank_transfer", "gift_card", "other"] as const;
+
 const oppSchema = z.object({
+  kind: z.enum(KINDS).default("event"),
   name: z.string().min(1, t.validation.required).max(200, t.validation.tooLong),
   contact_id: uuid, company_id: uuid,
   expected_value: euroField, probability: intField(0, 100), attendees: intField(1, 100000),
@@ -24,20 +29,20 @@ const oppSchema = z.object({
 
 function toRow(d: z.output<typeof oppSchema>) {
   return {
-    name: d.name, contact_id: d.contact_id ?? null, company_id: d.company_id ?? null,
+    name: d.name, kind: d.kind, contact_id: d.contact_id ?? null, company_id: d.company_id ?? null,
     expected_value_cents: d.expected_value ?? null, probability: d.probability ?? null, attendees: d.attendees ?? null,
     expected_close_date: d.expected_close_date ?? null, event_date: d.event_date ?? null, event_type: d.event_type ?? null,
   };
 }
 
-export async function createOpportunity(kind: "b2b" | "b2c", _: ActionState | null, fd: FormData): Promise<ActionState> {
+export async function createOpportunity(_: ActionState | null, fd: FormData): Promise<ActionState> {
   const parsed = parseForm(oppSchema, fd);
   if (parsed.fieldErrors) return { fieldErrors: parsed.fieldErrors };
   const supabase = await createClient();
   const contact = await resolveContact(supabase, fd);
   if (contact.fieldErrors) return { fieldErrors: contact.fieldErrors };
   if (contact.id) parsed.data.contact_id = contact.id;
-  const { data: pipe } = await supabase.from("pipelines").select("id").eq("kind", kind).single();
+  const { data: pipe } = await supabase.from("pipelines").select("id").eq("kind", "sales").single();
   if (!pipe) return errorState();
   const { data: first } = await supabase.from("pipeline_stages").select("id").eq("pipeline_id", pipe.id).eq("kind", "open").order("position").limit(1).single();
   if (!first) return errorState();
@@ -46,7 +51,7 @@ export async function createOpportunity(kind: "b2b" | "b2c", _: ActionState | nu
   const { data, error } = await supabase.from("opportunities")
     .insert({ ...toRow(parsed.data), pipeline_id: pipe.id, stage_id: first.id, source }).select("id").single();
   if (error || !data) return errorState();
-  await logActivity(supabase, { opportunity_id: data.id, type: "created", summary: "Trattativa creata" });
+  await logActivity(supabase, { opportunity_id: data.id, type: "created", summary: "Lead creato" });
   revalidatePath("/sales");
   return { ok: true };
 }
@@ -85,6 +90,46 @@ export async function moveOpportunity(id: string, stageId: string, lostReason?: 
   await logActivity(supabase, { opportunity_id: id, type: "stage", summary: `Fase: ${from ?? "—"} → ${stage.name}` });
   revalidatePath("/sales"); revalidatePath(`/sales/${id}`);
   return { ok: true };
+}
+
+const closeSchema = z.object({
+  total: euroField.refine((v) => v !== undefined, { message: t.validation.required }),
+  collected: euroField, paid_on: dateField, method: z.enum(METHODS).default("bank_transfer"),
+});
+
+/**
+ * Chiude una scheda come vinta: fissa il valore totale e, se indicato, registra il primo incasso con la sua data.
+ * Gli incassi successivi si aggiungono dalla scheda (tab Pagamenti). Solo owner/admin registrano incassi.
+ */
+export async function closeOpportunity(id: string, stageId: string, fd: FormData): Promise<ActionState & { totalCents?: number; collectedCents?: number }> {
+  const parsed = parseForm(closeSchema, fd);
+  if (parsed.fieldErrors) return { fieldErrors: parsed.fieldErrors };
+  const d = parsed.data;
+  const me = await getProfile();
+  const supabase = await createClient();
+  const { data: stage } = await supabase.from("pipeline_stages").select("name,kind").eq("id", stageId).single();
+  if (!stage || stage.kind !== "won") return errorState();
+  const collected = d.collected ?? 0;
+  if (collected > 0 && !can(me.role, "payments.record")) return errorState(t.common.notAllowed);
+  const paidAt = d.paid_on ? romeLocalToUtc(`${d.paid_on}T12:00`) : new Date();
+  if (!paidAt) return { fieldErrors: { paid_on: t.validation.date } };
+
+  const { data: before } = await supabase.from("opportunities").select("contact_id,company_id,pipeline_stages(name)").eq("id", id).single();
+  if (!before) return errorState();
+  const { error } = await supabase.from("opportunities").update({ stage_id: stageId, agreed_value_cents: d.total }).eq("id", id);
+  if (error) return errorState();
+  const from = (before.pipeline_stages as unknown as { name: string } | null)?.name;
+  await logActivity(supabase, { opportunity_id: id, type: "stage", summary: `Fase: ${from ?? "—"} → ${stage.name}` });
+  if (collected > 0) {
+    const { error: payError } = await supabase.from("payments").insert({
+      kind: "payment", amount_cents: collected, method: d.method, paid_at: paidAt.toISOString(), vat_rate: 22,
+      contact_id: before.contact_id, company_id: before.company_id, opportunity_id: id, recorded_by: me.id, reference: "Chiusura",
+    });
+    if (payError) return { error: t.sales.closePaymentFailed };
+    await logActivity(supabase, { opportunity_id: id, type: "payment", summary: "Pagamento registrato" });
+  }
+  revalidatePath("/sales"); revalidatePath(`/sales/${id}`); revalidatePath("/finance"); revalidatePath("/dashboard");
+  return { ok: true, totalCents: d.total, collectedCents: collected };
 }
 
 export async function moveOpportunityForm(id: string, fd: FormData) {

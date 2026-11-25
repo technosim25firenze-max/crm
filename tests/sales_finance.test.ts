@@ -20,15 +20,17 @@ beforeAll(async () => {
   staff = await addUser(db, "s@example.com");
   await db.query("update profiles set role='admin' where id=$1", [admin]);
   await db.query("update profiles set role='marketing' where id=$1", [marketing]);
-  b2b = await stages("b2b");
+  b2b = await stages("sales");
 });
 
 describe("pipeline di default", () => {
-  it("B2B ha 12 fasi in italiano con una acquisita e una persa", async () => {
-    expect(Object.keys(b2b.stages)).toHaveLength(12);
+  it("una sola pipeline con 8 fasi in italiano: una chiusa (acquisita) e una persa", async () => {
+    expect((await db.query<{ n: number }>("select count(*)::int n from pipelines")).rows[0].n).toBe(1);
+    expect(Object.keys(b2b.stages)).toHaveLength(8);
     const kinds = (await db.query<{ kind: string }>("select kind from pipeline_stages where pipeline_id=$1 and kind<>'open'", [b2b.pipeline])).rows.map((r) => r.kind).sort();
     expect(kinds).toEqual(["lost", "won"]);
-    expect(b2b.stages["Acquisita"]).toBeDefined();
+    expect(b2b.stages["Chiuso"]).toBeDefined();
+    expect(b2b.stages["Da contattare"]).toBeDefined();
   });
 });
 
@@ -38,8 +40,8 @@ describe("opportunità", () => {
     await asUser(db, staff, async () => {
       oppId = (await db.query<{ id: string }>(
         "insert into opportunities (pipeline_id, stage_id, name, expected_value_cents) values ($1,$2,'Evento Demo',100000) returning id",
-        [b2b.pipeline, b2b.stages["Nuovo contatto"]])).rows[0].id;
-      await db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2b.stages["Contattato"]]);
+        [b2b.pipeline, b2b.stages["Da contattare"]])).rows[0].id;
+      await db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2b.stages["Chiamato"]]);
     });
     const h = (await db.query<{ changed_by: string; from_stage_id: string | null }>("select changed_by, from_stage_id from opportunity_stage_history where opportunity_id=$1 order by changed_at, id", [oppId])).rows;
     expect(h).toHaveLength(2);
@@ -48,7 +50,7 @@ describe("opportunità", () => {
   });
   it("acquisita: chiude, valore concordato = atteso, ma NON risulta pagata", async () => {
     await asUser(db, staff, async () => {
-      await db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2b.stages["Acquisita"]]);
+      await db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2b.stages["Chiuso"]]);
     });
     const o = (await db.query<{ closed_at: string | null; agreed_value_cents: number }>("select closed_at, agreed_value_cents from opportunities where id=$1", [oppId])).rows[0];
     expect(o.closed_at).not.toBeNull();
@@ -56,14 +58,16 @@ describe("opportunità", () => {
     expect((await db.query("select 1 from payments where opportunity_id=$1", [oppId])).rows).toHaveLength(0);
   });
   it("riaprire azzera chiusura; persa conserva il motivo", async () => {
-    await db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2b.stages["Trattativa"]]);
+    await db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2b.stages["Follow-up"]]);
     expect((await db.query<{ closed_at: string | null }>("select closed_at from opportunities where id=$1", [oppId])).rows[0].closed_at).toBeNull();
-    await db.query("update opportunities set stage_id=$2, lost_reason='Prezzo' where id=$1", [oppId, b2b.stages["Persa"]]);
+    await db.query("update opportunities set stage_id=$2, lost_reason='Prezzo' where id=$1", [oppId, b2b.stages["Perso"]]);
     expect((await db.query<{ lost_reason: string }>("select lost_reason from opportunities where id=$1", [oppId])).rows[0].lost_reason).toBe("Prezzo");
   });
   it("rifiuta una fase di un'altra pipeline", async () => {
-    const b2c = await stages("b2c");
-    await expect(db.query("update opportunities set stage_id=$2 where id=$1", [oppId, b2c.stages["Nuova richiesta"]])).rejects.toThrow(/pipeline/);
+    const other = (await db.query<{ id: string }>("insert into pipelines (name, kind) values ('Altra', 'b2c') returning id")).rows[0].id;
+    const foreign = (await db.query<{ id: string }>("insert into pipeline_stages (pipeline_id, name, position) values ($1,'X',1) returning id", [other])).rows[0].id;
+    await expect(db.query("update opportunities set stage_id=$2 where id=$1", [oppId, foreign])).rejects.toThrow(/pipeline/);
+    await db.query("delete from pipelines where id=$1", [other]);
   });
   it("note e task collegabili alla trattativa", async () => {
     await db.query("insert into notes (opportunity_id, body) values ($1,'ok')", [oppId]);
@@ -145,5 +149,37 @@ describe("spese e marketing", () => {
     });
     expect((await db.query("select 1 from pipeline_stages where name='Hack'")).rows).toHaveLength(0);
     await asUser(db, admin, async () => { await db.query("insert into services (name, default_price_cents) values ('Sessione 60 min', 3490)"); });
+  });
+});
+
+describe("prenotazioni → schede individuali", () => {
+  const booking = (ext: string, extra: object = {}) => db.query<{ id: string }>("select upsert_booking($1::jsonb) as id",
+    [JSON.stringify({ external_id: ext, customer_name: "Mario", customer_surname: "Rossi", customer_email: `${ext}@x.it`, service_name: "Sessione F1", total_cents: 6000, paid_cents: 6000, starts_at: "2026-12-01T10:00:00Z", ...extra })]).then((r) => r.rows[0].id);
+  const opp = async (bid: string) => (await db.query<{ kind: string; stage: string; value: number; contact_id: string | null }>(
+    "select o.kind, s.name as stage, o.agreed_value_cents as value, o.contact_id from opportunities o join pipeline_stages s on s.id=o.stage_id where o.booking_id=$1", [bid])).rows;
+
+  it("ogni prenotazione crea una scheda Individuale già Chiuso con il valore", async () => {
+    const b = await booking("bk1");
+    const rows = await opp(b);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "individual", stage: "Chiuso", value: 6000 });
+    expect(rows[0].contact_id).not.toBeNull();
+  });
+  it("un aggiornamento non duplica la scheda; l'annullamento la porta in Perso", async () => {
+    const b = await booking("bk2");
+    await booking("bk2", { total_cents: 8000 });
+    expect(await opp(b)).toMatchObject([{ stage: "Chiuso", value: 8000 }]);
+    await booking("bk2", { status: "cancelled" });
+    expect(await opp(b)).toMatchObject([{ stage: "Perso" }]);
+  });
+  it("le prenotazioni di prova non creano schede", async () => {
+    const b = await booking("bk3", { is_test: true });
+    expect(await opp(b)).toHaveLength(0);
+  });
+  it("i pagamenti della prenotazione compaiono sulla scheda", async () => {
+    const b = await booking("bk4");
+    const o = (await db.query<{ id: string }>("select id from opportunities where booking_id=$1", [b])).rows[0].id;
+    await db.query("insert into payments (kind, booking_id, amount_cents, method) values ('payment', $1, 1000, 'cash')", [b]);
+    expect((await db.query<{ opportunity_id: string }>("select opportunity_id from payments where booking_id=$1", [b])).rows[0].opportunity_id).toBe(o);
   });
 });

@@ -17,7 +17,7 @@
 **Ruoli.** Titolare: tutto, compresi utenti. Amministratore: CRM, import/export. Marketing: contatti e consensi. Staff: contatti, note e documenti. Solo il Titolare gestisce utenti (`Impostazioni → Utenti`).
 
 ## Vendite
-`Vendite` ha tre schede: Aziende (B2B), Privati (B2C) e Attività. Ogni trattativa è una carta nella bacheca: trascinala nella fase successiva (su tablet usa il menu sulla carta). Per "Persa" viene chiesto il motivo. Aprendo la carta trovi riepilogo, note, preventivi (link Drive o file), pagamenti e cronologia delle fasi. **"Acquisita" non significa pagata**: gli incassi si registrano in Finanze o dalla scheda della trattativa.
+`Vendite` ha due schede: Pipeline e Attività. Ogni lead è una carta, **Individuale** (sessione singola) o **Evento** (privato o aziendale), nell'unica bacheca: Da contattare → Chiamato → Messaggio inviato → Visita prenotata → Preventivo inviato → Follow-up → Chiuso / Perso. I lead Meta entrano in «Da contattare»; le prenotazioni del sito entrano direttamente in «Chiuso». Trascina la carta nella fase successiva (su tablet usa il menu sulla carta). Per "Chiuso" si conferma il valore totale e il primo incasso con data; per "Persa" viene chiesto il motivo. Aprendo la carta trovi riepilogo, note, preventivi (link Drive o file), pagamenti e cronologia delle fasi. **"Chiuso" non significa pagato**: gli incassi si registrano in Finanze o dalla scheda della trattativa.
 
 ## Attività e ricontatti
 Dalla scheda di un contatto o di una trattativa usa "Ricontatto" per creare un'attività con scadenza. Quelle in ritardo compaiono in rosso e nella Panoramica.

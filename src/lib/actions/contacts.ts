@@ -8,7 +8,7 @@ import { can } from "@/lib/permissions";
 import { t } from "@/lib/i18n/it";
 import { errorState, findDuplicates, logActivity, parseForm, type ActionState } from "./shared";
 
-const kinds = ["b2c", "b2b", "supplier"] as const;
+const kinds = ["b2c", "b2b", "partner", "supplier"] as const;
 const lifecycles = ["prospect", "active", "returning", "inactive"] as const;
 const sources = Object.keys(t.sources) as [keyof typeof t.sources, ...(keyof typeof t.sources)[]];
 const channels = ["email", "phone", "whatsapp"] as const;
@@ -44,7 +44,7 @@ export async function createContact(_: ActionState | null, fd: FormData): Promis
     if (duplicates.length) return { duplicates };
   }
   const { company_name, ...contact } = parsed.data;
-  const { data, error } = await supabase.from("contacts").insert({ ...contact, lead_stage: "to_contact" }).select("id").single();
+  const { data, error } = await supabase.from("contacts").insert(contact).select("id").single();
   if (error || !data) return errorState();
   if (company_name) {
     // Riusa l'azienda con lo stesso nome (senza distinguere maiuscole), altrimenti la crea.

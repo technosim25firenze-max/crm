@@ -1,5 +1,4 @@
 import Link from "@/components/nav-link";
-import { LeadStageSelect } from "@/components/lead-stage-select";
 import { notFound } from "next/navigation";
 import { Mail, Phone, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -92,7 +91,6 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
             <dl>
               <Row label={t.contacts.city}>{[c.city, c.country].filter(Boolean).join(", ")}</Row>
               <Row label={t.contacts.jobTitle}>{c.job_title}</Row>
-              <Row label={t.leads.stage}><LeadStageSelect id={id} stage={c.lead_stage} /></Row>
               <Row label={t.contacts.lifecycle}>{t.lifecycle[c.lifecycle as keyof typeof t.lifecycle]}</Row>
               <Row label={t.contacts.preferredChannel}>{c.preferred_channel ? t.channels[c.preferred_channel as keyof typeof t.channels] : null}</Row>
               <Row label={t.contacts.simPreferences}>{c.sim_preferences}</Row>
@@ -154,7 +152,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
     );
   } else if (tab === "opportunities") {
     const [{ data }, { data: unlinked }, { data: cos }] = await Promise.all([
-      supabase.from("opportunities").select("id,name,expected_value_cents,agreed_value_cents,created_at,pipelines(kind),pipeline_stages(name,kind)").eq("contact_id", id).order("created_at", { ascending: false }),
+      supabase.from("opportunities").select("id,name,expected_value_cents,agreed_value_cents,created_at,kind,pipeline_stages(name,kind)").eq("contact_id", id).order("created_at", { ascending: false }),
       supabase.from("opportunities").select("id,name,expected_value_cents").is("contact_id", null).order("created_at", { ascending: false }).limit(30),
       supabase.from("companies").select("id,name").is("archived_at", null).order("name").limit(500),
     ]);
@@ -163,13 +161,13 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
       <div className="space-y-4">
       <div className="flex flex-wrap justify-end gap-2">
         <LinkExistingButton entity="opportunity" contactId={id} items={(unlinked ?? []).map((o) => ({ id: o.id, label: o.name, sub: o.expected_value_cents != null ? formatEuro(o.expected_value_cents) : undefined }))} />
-        <NewOpportunityButton kind="b2c" companies={cos ?? []} preset={preset} variant="secondary" />
+        <NewOpportunityButton kind="individual" companies={cos ?? []} preset={preset} variant="secondary" />
       </div>
       <Card>
         {data?.length ? <ul className="divide-y divide-border">{data.map((o) => {
           const st = o.pipeline_stages as unknown as { name: string; kind: string };
           const v = o.agreed_value_cents ?? o.expected_value_cents;
-          return <li key={o.id}><Link href={`/sales/${o.id}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-background"><span className="font-medium">{o.name}</span><span className="flex items-center gap-3"><Badge tone={st.kind === "won" ? "success" : st.kind === "lost" ? "brand" : "neutral"}>{st.name}</Badge><span className="text-muted">{v != null ? formatEuro(v) : ""}</span></span></Link></li>;
+          return <li key={o.id}><Link href={`/sales/${o.id}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-background"><span className="font-medium">{o.name}</span><span className="flex items-center gap-3"><Badge>{t.sales.kinds[o.kind as keyof typeof t.sales.kinds]}</Badge><Badge tone={st.kind === "won" ? "success" : st.kind === "lost" ? "brand" : "neutral"}>{st.name}</Badge><span className="text-muted">{v != null ? formatEuro(v) : ""}</span></span></Link></li>;
         })}</ul> : <p className="px-4 py-8 text-center text-sm text-muted">{t.contacts.noOpps}</p>}
       </Card>
       </div>

@@ -79,7 +79,7 @@ Contratti (Fase 1–2): server actions tipizzate con Zod (`src/lib/actions/*`) c
 
 1. ✔ Fondamenta: auth, ruoli, layout, tema, RLS, audit.
 2. ✔ CRM: contatti, aziende, tag, note, documenti, consensi, duplicati, unione, import/export CSV.
-3. Vendite: pipeline B2B/B2C configurabili, kanban, task.
+3. Vendite: un'unica pipeline configurabile (schede Individuale/Evento), kanban, task.
 4. Prenotazioni + pagamenti (Stripe, manuali, rimborsi, saldi).
 5. Finanze: spese, KPI, dashboard.
 6. Marketing: Meta Lead Ads, attribuzione, spesa.

@@ -21,7 +21,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   let query = supabase
     .from("contacts")
-    .select("id,display_name,email,phone,kind,lifecycle,city,created_at,contact_tags(tags(id,name))", { count: "exact" })
+    .select("id,display_name,email,phone,kind,lifecycle,city,created_at,contact_tags(tags(id,name)),company_contacts(companies(id,name))", { count: "exact" })
     .is("archived_at", null)
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
@@ -55,11 +55,15 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
               <tbody className="divide-y divide-border">
                 {data.map((c) => {
                   const tags = (c.contact_tags as unknown as { tags: { id: string; name: string } | null }[]).flatMap((x) => (x.tags ? [x.tags] : []));
+                  const companies = (c.company_contacts as unknown as { companies: { id: string; name: string } | null }[]).flatMap((x) => (x.companies ? [x.companies] : []));
                   return (
                     <tr key={c.id} className="hover:bg-background">
                       <td className="px-4 py-3">
                         <Link href={`/contacts/${c.id}`} className="font-medium hover:underline">{c.display_name}</Link>
-                        <div className="text-xs text-muted">{c.email}</div>
+                        <div className="text-xs text-muted">
+                          {companies.map((co, i) => <span key={co.id}>{i > 0 && ", "}<Link href={`/companies/${co.id}`} className="hover:underline">{co.name}</Link></span>)}
+                          {companies.length > 0 && c.email && " · "}{c.email}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-muted">{c.phone ?? "—"}</td>
                       <td className="px-4 py-3"><Badge>{t.kinds[c.kind as keyof typeof t.kinds]}</Badge></td>

@@ -3,17 +3,23 @@ import { useState, useTransition } from "react";
 import Link from "@/components/nav-link";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Badge, Button } from "@/components/ui";
+import { CloseDealDialog } from "@/components/close-deal-dialog";
 import { moveOpportunity } from "@/lib/actions/sales";
 import { formatDate, formatEuro } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
 
 export interface KStage { id: string; name: string; kind: "open" | "won" | "lost" }
-export interface KItem { id: string; name: string; stage_id: string; value_cents: number | null; who: string | null; close: string | null; overdue: boolean }
+export interface KItem {
+  id: string; name: string; stage_id: string; kind: "individual" | "event"; value_cents: number | null;
+  collected_cents: number | null; who: string | null; close: string | null; overdue: boolean;
+}
 
-export function Kanban({ stages, initial }: { stages: KStage[]; initial: KItem[] }) {
+/** Bacheca unica: una colonna per fase. "Chiuso" chiede valore e primo incasso, "Perso" il motivo. */
+export function Kanban({ stages, initial, canPay }: { stages: KStage[]; initial: KItem[]; canPay: boolean }) {
   const [items, setItems] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<{ id: string; stage: string } | null>(null);
+  const [closing, setClosing] = useState<{ id: string; stageId: string; name: string; totalCents: number | null; canPay: boolean } | null>(null);
   const [reason, setReason] = useState<string>(t.sales.lostReasons[0]);
   const [, start] = useTransition();
   const [over, setOver] = useState<string | null>(null);
@@ -32,6 +38,7 @@ export function Kanban({ stages, initial }: { stages: KStage[]; initial: KItem[]
     if (!item || item.stage_id === stageId) return;
     const stage = stages.find((s) => s.id === stageId);
     if (stage?.kind === "lost") { setReason(t.sales.lostReasons[0]); setLost({ id, stage: stageId }); return; }
+    if (stage?.kind === "won") { setClosing({ id, stageId, name: item.name, totalCents: item.value_cents, canPay }); return; }
     move(id, stageId);
   }
 
@@ -48,23 +55,29 @@ export function Kanban({ stages, initial }: { stages: KStage[]; initial: KItem[]
               onDrop={(e) => { e.preventDefault(); setOver(null); requestMove(e.dataTransfer.getData("text/plain"), s.id); }}
               className={`w-64 shrink-0 rounded-xl border bg-background p-2 transition-colors ${over === s.id ? "border-brand" : "border-border"}`}>
               <header className="mb-2 flex items-center justify-between px-1.5 pt-1">
-                <h3 className="truncate text-[13px] font-semibold">{s.name}</h3>
-                <span className="text-xs text-muted">{col.length}</span>
+                <h3 className="flex items-center gap-2 truncate text-[13px] font-semibold">
+                  <span className={`h-2 w-2 rounded-full ${s.kind === "won" ? "bg-success" : s.kind === "lost" ? "bg-muted/50" : "bg-brand/70"}`} />{s.name}
+                </h3>
+                <span className="text-xs text-muted tabular-nums">{col.length}</span>
               </header>
-              <p className="mb-2 px-1.5 text-xs text-muted">{total > 0 ? formatEuro(total) : " "}</p>
-              <div className="space-y-2">
+              <p className="mb-2 px-1.5 text-xs text-muted">{total > 0 ? formatEuro(total) : " "}</p>
+              <div className="min-h-12 space-y-2">
                 {col.map((i) => (
                   <article key={i.id} draggable onDragStart={(e) => e.dataTransfer.setData("text/plain", i.id)}
                     className="cursor-grab rounded-lg border border-border bg-surface p-3 text-sm shadow-sm active:cursor-grabbing">
                     <Link href={`/sales/${i.id}`} className="font-medium leading-snug hover:underline">{i.name}</Link>
                     {i.who && <p className="mt-0.5 truncate text-xs text-muted">{i.who}</p>}
                     <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted">
-                      <span>{i.value_cents != null ? formatEuro(i.value_cents) : t.sales.cardNoValue}</span>
+                      <Badge>{t.sales.kinds[i.kind]}</Badge>
                       <span className="flex items-center gap-1.5">
                         {i.overdue && <Badge tone="brand">{t.tasks.overdue}</Badge>}
                         {i.close && formatDate(i.close)}
                       </span>
                     </div>
+                    <p className="mt-2 text-xs text-muted">
+                      {i.value_cents != null ? formatEuro(i.value_cents) : t.sales.cardNoValue}
+                      {i.collected_cents != null && i.value_cents != null && i.value_cents > 0 && <> · <span className={i.collected_cents >= i.value_cents ? "text-success" : ""}>{formatEuro(i.collected_cents)} {t.sales.paid}</span></>}
+                    </p>
                     {/* Su tablet il trascinamento non è disponibile: selettore alternativo */}
                     <select aria-label={t.sales.move} value={i.stage_id} onChange={(e) => requestMove(i.id, e.target.value)}
                       className="mt-2 hidden h-8 w-full rounded-md border border-border bg-surface text-xs [@media(pointer:coarse)]:block">
@@ -77,6 +90,12 @@ export function Kanban({ stages, initial }: { stages: KStage[]; initial: KItem[]
           );
         })}
       </div>
+
+      <CloseDealDialog target={closing} onClose={() => setClosing(null)}
+        onDone={(r) => {
+          setItems((cur) => cur.map((i) => (i.id === r.id ? { ...i, stage_id: r.stageId, value_cents: r.totalCents, collected_cents: canPay ? (i.collected_cents ?? 0) + r.collectedCents : null } : i)));
+          setClosing(null);
+        }} />
 
       <Dialog.Root open={!!lost} onOpenChange={(o) => !o && setLost(null)}>
         <Dialog.Portal>

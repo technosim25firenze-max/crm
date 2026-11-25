@@ -101,3 +101,16 @@ export function manualPaymentStatus(totalCents: number | null, paymentsGross: nu
   if (collected <= 0) return "unpaid";
   return totalCents != null && totalCents > 0 && collected >= totalCents ? "paid" : "partially_paid";
 }
+
+/**
+ * Incassato di una scheda di vendita. Per una scheda nata da una prenotazione si segue la stessa regola del residuo:
+ * incassato dichiarato dalla piattaforma + pagamenti registrati a mano (quelli della piattaforma sono lo stesso denaro).
+ */
+export function opportunityCollectedCents(
+  payments: { kind: string; amount_cents: number; source?: string | null }[],
+  booking?: { source: string; paid_cents: number } | null,
+): number {
+  const net = (rows: typeof payments) => rows.reduce((a, r) => a + (r.kind === "refund" ? -1 : 1) * r.amount_cents, 0);
+  if (!booking) return net(payments);
+  return (booking.source === "manual" ? 0 : booking.paid_cents) + net(payments.filter((p) => p.source === "manual"));
+}
