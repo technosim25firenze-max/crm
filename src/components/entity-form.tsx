@@ -44,11 +44,12 @@ export function ContactForm({ action, contact, onDone }: { action: Action; conta
             </Select>
           </Field>
           <Field label={t.contacts.source}>
-            <Select name="source" defaultValue={contact?.source ?? "manual"}>
+            <Select name="source" defaultValue={contact?.source ?? "unknown"}>
               {Object.entries(t.sources).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </Select>
           </Field>
           <Field label={t.contacts.sourceDetail} className="sm:col-span-2"><Input name="source_detail" defaultValue={v("source_detail")} /></Field>
+          {!contact && <Field label={t.contacts.companyName}><Input name="company_name" /></Field>}
           <Field label={t.contacts.jobTitle}><Input name="job_title" defaultValue={v("job_title")} /></Field>
           <Field label={t.contacts.country}><Input name="country" defaultValue={v("country")} /></Field>
           <Field label={t.contacts.preferredChannel}>

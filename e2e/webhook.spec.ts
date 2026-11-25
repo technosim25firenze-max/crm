@@ -23,3 +23,14 @@ test("accetta firma HMAC, Bearer o token nell'URL (senza sessione utente) e vali
 test("un array vuoto è rifiutato", async ({ request }) => {
   expect((await request.post(`${URL}?token=test-secret`, { data: "[]" })).status()).toBe(400);
 });
+
+test("il webhook Stripe rifiuta richieste senza firma valida", async ({ request }) => {
+  const res = await request.post("/api/webhooks/stripe", { data: "{}", headers: { "stripe-signature": "t=1,v1=00" } });
+  expect([400, 503]).toContain(res.status());
+});
+
+test("il webhook dei lead rifiuta richieste non autenticate e accetta il token nell'URL", async ({ request }) => {
+  const lead = { data: { "e-mail": "x@y.it" }, leadgenId: "1" };
+  expect((await request.post("/api/webhooks/leads", { data: lead })).status()).toBe(401);
+  expect((await request.post("/api/webhooks/leads?token=test-secret", { data: "[]" })).status()).toBe(400);
+});

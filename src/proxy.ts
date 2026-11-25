@@ -21,7 +21,7 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getUser();
   const isLogin = request.nextUrl.pathname === "/login";
   // /set-password riceve la sessione dall'invito nel frammento dell'URL (lato browser).
-  if (request.nextUrl.pathname === "/set-password") return response;
+  if (request.nextUrl.pathname === "/set-password" || request.nextUrl.pathname === "/forgot-password") return response;
   // I webhook dei sistemi esterni si autenticano con firma HMAC, non con la sessione utente.
   if (request.nextUrl.pathname.startsWith("/api/webhooks/")) return response;
 

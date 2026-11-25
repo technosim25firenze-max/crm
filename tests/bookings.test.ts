@@ -47,7 +47,9 @@ describe("autenticazione webhook", () => {
 
 describe("mapper sul formato reale", () => {
   it("l'evento di prova è riconosciuto come test", () => {
-    expect(mapEvent(SAMPLE[0])).toEqual({ ok: true, kind: "test" });
+    const r = mapEvent(SAMPLE[0]);
+    expect(r.ok && r.kind === "bookings" && r.bookings[0].is_test).toBe(true);
+    expect(mapEvent({ id: "x", type: "webhook.test", data: {} })).toEqual({ ok: true, kind: "test" });
   });
   it("converte euro in centesimi, stato, simulatore, cliente, consenso e attribuzione", () => {
     const m = mapEvent(real());
@@ -174,5 +176,15 @@ describe("upsert_booking (SQL)", () => {
   it("dati non validi rifiutati dal database", async () => {
     await expect(up({ external_id: "B7", status: "boh" })).rejects.toThrow();
     await expect(up({ status: "confirmed" })).rejects.toThrow(/external_id/);
+  });
+  it("prenotazione di prova: salvata con flag, senza contatto, consenso né pagamenti", async () => {
+    const m = mapEvent(SAMPLE[0]);
+    if (!m.ok || m.kind !== "bookings") throw new Error("mapper");
+    const before = (await db.query<{ n: number }>("select (select count(*) from contacts)::int + (select count(*) from payments)::int as n")).rows[0].n;
+    const id = await up({ ...m.bookings[0], external_id: "bkg_prova", event_at: "2026-11-23T18:48:23.873Z" });
+    const b = (await db.query<{ is_test: boolean; contact_id: string | null }>("select is_test,contact_id from bookings where id=$1", [id])).rows[0];
+    expect(b).toEqual({ is_test: true, contact_id: null });
+    const after = (await db.query<{ n: number }>("select (select count(*) from contacts)::int + (select count(*) from payments)::int as n")).rows[0].n;
+    expect(after).toBe(before);
   });
 });

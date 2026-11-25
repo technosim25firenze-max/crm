@@ -12,7 +12,7 @@ export async function createDb() {
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     create role authenticated;
   `);
-  for (const f of ["20261118000001_foundation_crm.sql", "20261120000003_bookings_webhook.sql", "20261121000004_sales_finance_marketing.sql", "20261123000005_booking_platform_manual.sql"]) {
+  for (const f of ["20261118000001_foundation_crm.sql", "20261120000003_bookings_webhook.sql", "20261121000004_sales_finance_marketing.sql", "20261123000005_booking_platform_manual.sql", "20261124000006_booking_test_flag.sql", "20261125000007_contact_options.sql", "20261125000008_meta_leads.sql"]) {
     await db.exec(readFileSync(join(process.cwd(), "supabase/migrations", f), "utf8"));
   }
   return db;

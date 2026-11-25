@@ -30,3 +30,11 @@ test("la pagina di impostazione password è raggiungibile senza sessione", async
   await page.goto("/set-password");
   await expect(page.getByRole("heading", { name: "Imposta la tua password" })).toBeVisible();
 });
+
+test("password dimenticata: pagina raggiungibile dal login e in italiano", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Password dimenticata?" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole("heading", { name: "Recupera la password" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Invia il link" })).toBeVisible();
+});

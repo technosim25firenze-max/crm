@@ -8,8 +8,8 @@ import { can } from "@/lib/permissions";
 import { t } from "@/lib/i18n/it";
 import { errorState, findDuplicates, logActivity, parseForm, type ActionState } from "./shared";
 
-const kinds = ["b2c", "b2b", "partner", "supplier"] as const;
-const lifecycles = ["prospect", "active", "returning", "vip", "inactive"] as const;
+const kinds = ["b2c", "b2b", "supplier"] as const;
+const lifecycles = ["prospect", "active", "returning", "inactive"] as const;
 const sources = Object.keys(t.sources) as [keyof typeof t.sources, ...(keyof typeof t.sources)[]];
 const channels = ["email", "phone", "whatsapp"] as const;
 const text = (max = 300) => z.string().max(max, t.validation.tooLong).optional();
@@ -22,9 +22,10 @@ const contactSchema = z.object({
   city: text(100),
   country: text(100),
   job_title: text(100),
+  company_name: text(200),
   kind: z.enum(kinds).default("b2c"),
   lifecycle: z.enum(lifecycles).default("prospect"),
-  source: z.enum(sources).default("manual"),
+  source: z.enum(sources).default("unknown"),
   source_detail: text(300),
   preferred_channel: z.enum(channels).optional(),
   sim_preferences: text(1000),
@@ -42,8 +43,16 @@ export async function createContact(_: ActionState | null, fd: FormData): Promis
     const duplicates = await findDuplicates(supabase, parsed.data.email, parsed.data.phone);
     if (duplicates.length) return { duplicates };
   }
-  const { data, error } = await supabase.from("contacts").insert(parsed.data).select("id").single();
+  const { company_name, ...contact } = parsed.data;
+  const { data, error } = await supabase.from("contacts").insert(contact).select("id").single();
   if (error || !data) return errorState();
+  if (company_name) {
+    // Riusa l'azienda con lo stesso nome (senza distinguere maiuscole), altrimenti la crea.
+    const pattern = company_name.replace(/[\\%_]/g, "\\$&");
+    let companyId = (await supabase.from("companies").select("id").ilike("name", pattern).limit(1).maybeSingle()).data?.id;
+    if (!companyId) companyId = (await supabase.from("companies").insert({ name: company_name, first_contact_at: new Date().toISOString() }).select("id").single()).data?.id;
+    if (companyId) await supabase.from("company_contacts").upsert({ contact_id: data.id, company_id: companyId, role: contact.job_title ?? null });
+  }
   await logActivity(supabase, { contact_id: data.id, type: "created", summary: "Contatto creato" });
   revalidatePath("/contacts");
   redirect(`/contacts/${data.id}`);

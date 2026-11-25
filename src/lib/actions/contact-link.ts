@@ -21,7 +21,7 @@ export async function resolveContact(supabase: SupabaseClient, fd: FormData): Pr
   if (email && !z.email().safeParse(email).success) return { fieldErrors: { contact_id: t.validation.email } };
   const dup = await findDuplicates(supabase, email, phone);
   if (dup.length) return { id: dup[0].id, reused: true };
-  const { data, error } = await supabase.from("contacts").insert({ first_name: first, last_name: last, email, phone, source: "manual" }).select("id").single();
+  const { data, error } = await supabase.from("contacts").insert({ first_name: first, last_name: last, email, phone, source: "unknown" }).select("id").single();
   if (error || !data) return { fieldErrors: { contact_id: t.common.genericError } };
   await logActivity(supabase, { contact_id: data.id, type: "created", summary: "Contatto creato" });
   return { id: data.id };

@@ -41,6 +41,7 @@ export interface MappedBooking {
   customer_name: string | null; customer_surname: string | null; customer_email: string | null; customer_phone: string | null;
   service_name: string | null; resource_name: string | null; starts_at: string; ends_at: string;
   total_cents: number | null; paid_cents: number; currency: "EUR"; checkout_id: string | null;
+  is_test?: boolean;
   details: Record<string, unknown>; attribution: Record<string, string>; marketing_consent: { granted_at?: string; text_version?: string } | null;
 }
 type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
@@ -75,8 +76,9 @@ export function paymentStatusOf(paidCents: number, totalCents: number | null): P
 
 export function mapEvent(raw: unknown, receivedAt: Date = new Date()): EventMap {
   const type = typeof raw === "object" && raw !== null ? (raw as { type?: unknown }).type : undefined;
-  if (typeof type === "string" && /(^|[.:_-])test($|[.:_-])/i.test(type)) return { ok: true, kind: "test" };
+  const isTest = typeof type === "string" && /(^|[.:_-])test($|[.:_-])/i.test(type);
   const parsed = eventSchema.safeParse(raw);
+  if (isTest && !parsed.success) return { ok: true, kind: "test" };
   if (!parsed.success) return { ok: false, reason: parsed.error.issues.map((i) => `${i.path.join(".") || "evento"}: ${i.message}`).join("; ").slice(0, 500) };
   const { data, created_at } = parsed.data;
 
@@ -106,7 +108,7 @@ export function mapEvent(raw: unknown, receivedAt: Date = new Date()): EventMap 
         simulators_count: b.simulators_count ?? null, extra_services: b.extra_services ?? [], promo_discount_percentage: b.promo_discount_percentage ?? null,
         customer_type: data.customer?.type ?? null,
       },
-      attribution,
+      attribution, ...(isTest ? { is_test: true } : {}),
       marketing_consent: consent?.granted_at ? { granted_at: new Date(consent.granted_at).toISOString(), text_version: consent.text_version ?? undefined } : null,
     });
   }

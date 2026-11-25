@@ -1,6 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { signIn } from "@/lib/actions/auth";
 import { Field, Input } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -21,6 +22,7 @@ export default function LoginPage() {
           <Field label={t.auth.password}><Input name="password" type="password" autoComplete="current-password" required /></Field>
           {state?.error && <p role="alert" className="text-sm text-brand">{state.error}</p>}
           <div className="[&>button]:w-full"><SubmitButton>{t.auth.submit}</SubmitButton></div>
+          <p className="text-center text-sm"><Link href="/forgot-password" className="text-muted underline hover:text-foreground">{t.auth.forgot}</Link></p>
         </form>
         <p className="mt-6 text-center text-xs text-muted">{t.auth.footer}</p>
       </div>

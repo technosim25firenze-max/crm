@@ -26,8 +26,8 @@ export default async function DashboardPage() {
 
   const [newContacts, todayBookings, upcoming, openOpps, myTasks, recent, pays] = await Promise.all([
     supabase.from("contacts").select("id", { count: "exact", head: true }).is("archived_at", null).gte("created_at", monthStart),
-    supabase.from("bookings").select("id", { count: "exact", head: true }).neq("status", "cancelled").gte("starts_at", dayStart.toISOString()).lt("starts_at", dayEnd.toISOString()),
-    supabase.from("bookings").select("id,customer_name,service_name,resource_name,starts_at").neq("status", "cancelled").gte("starts_at", now.toISOString()).order("starts_at").limit(5),
+    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("is_test", false).neq("status", "cancelled").gte("starts_at", dayStart.toISOString()).lt("starts_at", dayEnd.toISOString()),
+    supabase.from("bookings").select("id,customer_name,service_name,resource_name,starts_at").eq("is_test", false).neq("status", "cancelled").gte("starts_at", now.toISOString()).order("starts_at").limit(5),
     supabase.from("opportunities").select("expected_value_cents,agreed_value_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "open").limit(5000),
     supabase.from("tasks").select("id,title,due_date,priority").eq("assigned_to", me.id).is("done_at", null).lte("due_date", today).order("due_date").limit(6),
     supabase.from("contacts").select("id,display_name,email,kind,created_at").is("archived_at", null).order("created_at", { ascending: false }).limit(5),

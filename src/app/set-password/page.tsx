@@ -25,7 +25,7 @@ export default function SetPasswordPage() {
     if (password !== fd.get("confirm")) return setError("Le password non coincidono.");
     setPending(true);
     const { error } = await createClient().auth.updateUser({ password });
-    if (error) { setError("Impossibile impostare la password. Richiedi un nuovo invito."); setPending(false); return; }
+    if (error) { setError("Impossibile impostare la password. Richiedi un nuovo link."); setPending(false); return; }
     router.push("/dashboard");
   }
 
@@ -33,7 +33,7 @@ export default function SetPasswordPage() {
     <main className="flex min-h-screen items-center justify-center bg-sidebar px-4">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rise-in rounded-modal bg-surface p-8 shadow-pop">
         <h1 className="text-lg font-semibold">Imposta la tua password</h1>
-        {!ready && <p className="text-sm text-muted">Verifica dell&apos;invito in corso… Se il messaggio non scompare, apri di nuovo il link ricevuto via email.</p>}
+        {!ready && <p className="text-sm text-muted">Verifica del link in corso… Se il messaggio non scompare, il link è scaduto o va aperto dallo stesso browser da cui l&apos;hai richiesto: richiedine uno nuovo dalla pagina di accesso.</p>}
         <Field label="Nuova password"><Input name="password" type="password" autoComplete="new-password" required minLength={10} /></Field>
         <Field label="Ripeti la password"><Input name="confirm" type="password" autoComplete="new-password" required /></Field>
         {error && <p role="alert" className="text-sm text-brand">{error}</p>}

@@ -78,7 +78,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   } else if (tab === "customers") {
     const [{ data: contacts }, { data: bks }, payRes] = await Promise.all([
       supabase.from("contacts").select("source,created_at").is("archived_at", null).gte("created_at", iso(range.from)).lt("created_at", iso(range.to)).limit(10000),
-      supabase.from("bookings").select("contact_id,status").limit(20000),
+      supabase.from("bookings").select("contact_id,status").eq("is_test", false).limit(20000),
       finance ? supabase.from("payments").select("contact_id,kind,amount_cents,vat_rate,contacts(display_name)").limit(20000) : Promise.resolve({ data: null }),
     ]);
     const pays = (payRes.data ?? null) as unknown as { contact_id: string | null; kind: string; amount_cents: number; vat_rate: number; contacts: { display_name: string } | null }[] | null;
@@ -106,7 +106,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </div>
     );
   } else if (tab === "bookings") {
-    const { data } = await supabase.from("bookings").select("starts_at,status,resource_name,service_name").gte("starts_at", iso(range.from)).lt("starts_at", iso(range.to)).limit(20000);
+    const { data } = await supabase.from("bookings").select("starts_at,status,resource_name,service_name").eq("is_test", false).gte("starts_at", iso(range.from)).lt("starts_at", iso(range.to)).limit(20000);
     const s = bookingStats((data ?? []) as never);
     const entries = (o: Record<string, number>) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 8);
     body = s.total === 0 ? <Card><EmptyState title={t.analytics.noData} hint={t.bookingsPage.emptyHint} /></Card> : (

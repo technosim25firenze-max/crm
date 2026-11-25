@@ -55,7 +55,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     // Residui: trattative acquisite e prenotazioni non annullate.
     const [{ data: won }, { data: bks }] = await Promise.all([
       supabase.from("opportunities").select("id,name,agreed_value_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "won").gt("agreed_value_cents", 0).limit(500),
-      supabase.from("bookings").select("id,customer_name,starts_at,total_cents,paid_cents,status,source").in("status", ["pending", "confirmed", "completed"]).gt("total_cents", 0).limit(500),
+      supabase.from("bookings").select("id,customer_name,starts_at,total_cents,paid_cents,status,source").eq("is_test", false).in("status", ["pending", "confirmed", "completed"]).gt("total_cents", 0).limit(500),
     ]);
     const oppIds = (won ?? []).map((o) => o.id), bkIds = (bks ?? []).map((b) => b.id);
     const [{ data: op }, { data: bp }] = await Promise.all([

@@ -175,7 +175,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
   } else if (tab === "bookings") {
     const [{ data }, { data: unlinked }, form] = await Promise.all([
       supabase.from("bookings").select("id,starts_at,service_name,resource_name,status,payment_status,total_cents").eq("contact_id", id).order("starts_at", { ascending: false }).limit(100),
-      supabase.from("bookings").select("id,starts_at,customer_name,customer_email,service_name").is("contact_id", null).order("starts_at", { ascending: false }).limit(30),
+      supabase.from("bookings").select("id,starts_at,customer_name,customer_email,service_name").eq("is_test", false).is("contact_id", null).order("starts_at", { ascending: false }).limit(30),
       loadBookingFormData(supabase),
     ]);
     body = (

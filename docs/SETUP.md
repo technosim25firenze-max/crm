@@ -36,3 +36,21 @@ Piano Supabase Pro: backup giornalieri (PITR opzionale). Sul piano Free eseguire
 
 ## 7. Brand
 Colori e logo ricavati da technosim25.com (`#e01f25`, `#3f843e`, `#030303`). I font Ethnocentric/Avenir del sito sono proprietari e non inclusi: l'interfaccia usa Inter. Regole di stile e token: `docs/DESIGN_SYSTEM.md`.
+
+## Stripe (incassi e rimborsi)
+
+1. Stripe → Sviluppatori → Webhook → Aggiungi endpoint: `https://<dominio>/api/webhooks/stripe`.
+2. Eventi da selezionare: `charge.succeeded` e `charge.refunded` (gli altri vengono ignorati).
+3. Copia il "Segreto di firma" (`whsec_…`) in `STRIPE_WEBHOOK_SECRET` su Vercel (e in `.env.local`), poi Redeploy.
+4. La chiave segreta Stripe non serve a questa integrazione: non metterla se non è necessaria.
+5. Se Stripe incassa anche gli acconti delle prenotazioni online, disattiva in Impostazioni → Integrazioni la replica dell'incassato dal webhook prenotazioni, per non contare due volte lo stesso incasso.
+
+I pagamenti Stripe sono collegati al contatto con la stessa email (altrimenti restano "non collegati" e si collegano a mano). Solo EUR.
+
+## Password dimenticata
+
+La pagina `/forgot-password` invia il link di Supabase Auth. In Supabase → Authentication → URL Configuration, `https://<dominio>/**` deve essere tra i Redirect URLs. Il link va aperto dallo stesso browser da cui è stato richiesto.
+
+## Lead Facebook/Instagram tramite Make
+
+In Make, dopo il modulo "Facebook Lead Ads", aggiungi **HTTP → Make a request**: URL = indirizzo in Impostazioni → Integrazioni → "Lead Facebook / Instagram" (con `?token=…`), metodo POST, Body type "Raw", Content type JSON, con i campi del lead (`data`, `formId`, `pageId`, `isOrganic`, `leadgenId`, `dateCreated`). Il lead di prova di Meta (dati "<test lead…>") è riconosciuto e non crea nulla. Ogni lead vero crea (o riusa per email/telefono) il contatto, l'azienda, una nota con tutte le risposte e una trattativa nella prima fase B2B. Se vuoi un segreto diverso da quello delle prenotazioni, imposta `LEADS_WEBHOOK_SECRET`.
