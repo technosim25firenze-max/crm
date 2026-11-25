@@ -30,14 +30,16 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const supabase = await createClient();
   const keep: Record<string, string> = { tab };
 
+  const needPays = tab !== "expenses", needSummary = tab === "summary", needExp = tab !== "payments";
+  const none = Promise.resolve({ data: null });
   const [{ data: payData }, { data: prevData }, { data: expData }, { data: services }, { data: categories }] = await Promise.all([
-    supabase.from("payments").select("id,kind,refund_of,amount_cents,vat_rate,method,paid_at,reference,reconciled,contact_id,booking_id,contacts(display_name)")
-      .gte("paid_at", range.from.toISOString()).lt("paid_at", range.to.toISOString()).order("paid_at", { ascending: false }).limit(2000),
-    supabase.from("payments").select("kind,amount_cents,vat_rate,method,paid_at").gte("paid_at", prev.from.toISOString()).lt("paid_at", prev.to.toISOString()).limit(5000),
-    supabase.from("expenses").select("id,spent_on,supplier,description,net_cents,vat_cents,total_cents,payment_status,expense_categories(name,kind)")
-      .gte("spent_on", range.fromStr).lte("spent_on", range.toStr).order("spent_on", { ascending: false }).limit(1000),
-    supabase.from("services").select("id,name,vat_rate").eq("active", true).order("name"),
-    supabase.from("expense_categories").select("id,name").order("name"),
+    needPays ? supabase.from("payments").select("id,kind,refund_of,amount_cents,vat_rate,method,paid_at,reference,reconciled,contact_id,booking_id,contacts(display_name)")
+      .gte("paid_at", range.from.toISOString()).lt("paid_at", range.to.toISOString()).order("paid_at", { ascending: false }).limit(2000) : none,
+    needSummary ? supabase.from("payments").select("kind,amount_cents,vat_rate,method,paid_at").gte("paid_at", prev.from.toISOString()).lt("paid_at", prev.to.toISOString()).limit(5000) : none,
+    needExp ? supabase.from("expenses").select("id,spent_on,supplier,description,net_cents,vat_cents,total_cents,payment_status,expense_categories(name,kind)")
+      .gte("spent_on", range.fromStr).lte("spent_on", range.toStr).order("spent_on", { ascending: false }).limit(1000) : none,
+    tab !== "expenses" ? supabase.from("services").select("id,name,vat_rate").eq("active", true).order("name") : none,
+    tab === "expenses" ? supabase.from("expense_categories").select("id,name").order("name") : none,
   ]);
   const pays = (payData ?? []).map((p) => ({ ...p, contacts: p.contacts as unknown as { display_name: string } | null })) as PayRow[];
   const exps = (expData ?? []).map((e) => ({ ...e, cat: e.expense_categories as unknown as { name: string; kind: "fixed" | "variable" } | null }));
@@ -53,14 +55,12 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
 
   if (tab === "summary") {
     // Residui: trattative acquisite e prenotazioni non annullate.
-    const [{ data: won }, { data: bks }] = await Promise.all([
+    const [{ data: won }, { data: bks }, { data: op }, { data: bp }] = await Promise.all([
       supabase.from("opportunities").select("id,name,agreed_value_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "won").gt("agreed_value_cents", 0).limit(500),
       supabase.from("bookings").select("id,customer_name,starts_at,total_cents,paid_cents,status,source").eq("is_test", false).in("status", ["pending", "confirmed", "completed"]).gt("total_cents", 0).limit(500),
-    ]);
-    const oppIds = (won ?? []).map((o) => o.id), bkIds = (bks ?? []).map((b) => b.id);
-    const [{ data: op }, { data: bp }] = await Promise.all([
-      oppIds.length ? supabase.from("payments").select("opportunity_id,kind,amount_cents").in("opportunity_id", oppIds) : Promise.resolve({ data: [] as { opportunity_id: string; kind: string; amount_cents: number }[] }),
-      bkIds.length ? supabase.from("payments").select("booking_id,kind,amount_cents").eq("source", "manual").in("booking_id", bkIds) : Promise.resolve({ data: [] as { booking_id: string; kind: string; amount_cents: number }[] }),
+      // Incassi collegati a trattative/prenotazioni, caricati in parallelo e abbinati qui sotto (evita query in sequenza).
+      supabase.from("payments").select("opportunity_id,kind,amount_cents").not("opportunity_id", "is", null).limit(5000),
+      supabase.from("payments").select("booking_id,kind,amount_cents").eq("source", "manual").not("booking_id", "is", null).limit(5000),
     ]);
     const net = (rows: { kind: string; amount_cents: number }[]) => rows.reduce((a, r) => a + (r.kind === "refund" ? -1 : 1) * r.amount_cents, 0);
     const outstanding = [

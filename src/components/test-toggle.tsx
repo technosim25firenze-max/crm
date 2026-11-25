@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { t } from "@/lib/i18n/it";
 
@@ -11,6 +11,9 @@ export function TestToggle({ showTests }: { showTests: boolean }) {
   const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const [, startTransition] = useTransition();
+  // Stato locale: la spunta risponde subito, senza attendere il ricaricamento della pagina.
+  const [hidden, setHidden] = useOptimistic(!showTests);
 
   useEffect(() => {
     if (!open) return;
@@ -26,7 +29,7 @@ export function TestToggle({ showTests }: { showTests: boolean }) {
     const next = new URLSearchParams(params.toString());
     if (hide) next.delete("test"); else next.set("test", "1");
     const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    startTransition(() => { setHidden(hide); router.push(qs ? `${pathname}?${qs}` : pathname); });
   }
 
   return (
@@ -38,7 +41,7 @@ export function TestToggle({ showTests }: { showTests: boolean }) {
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-1 w-64 rounded-md border border-border bg-surface p-2 shadow-lg">
           <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-background">
-            <input type="checkbox" checked={!showTests} onChange={(e) => change(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />
+            <input type="checkbox" checked={hidden} onChange={(e) => change(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />
             {t.bookingsPage.hideTests}
           </label>
         </div>

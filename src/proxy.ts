@@ -18,15 +18,17 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  const { data } = await supabase.auth.getUser();
+  // getClaims verifica il JWT in locale (chiavi asimmetriche) invece di chiamare il server Auth a ogni pagina.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
   const isLogin = request.nextUrl.pathname === "/login";
   // /set-password riceve la sessione dall'invito nel frammento dell'URL (lato browser).
   if (request.nextUrl.pathname === "/set-password" || request.nextUrl.pathname === "/forgot-password") return response;
   // I webhook dei sistemi esterni si autenticano con firma HMAC, non con la sessione utente.
   if (request.nextUrl.pathname.startsWith("/api/webhooks/")) return response;
 
-  if (!data.user && !isLogin) return NextResponse.redirect(new URL("/login", request.url));
-  if (data.user && isLogin) return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (!user && !isLogin) return NextResponse.redirect(new URL("/login", request.url));
+  if (user && isLogin) return NextResponse.redirect(new URL("/dashboard", request.url));
   return response;
 }
 

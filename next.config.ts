@@ -11,7 +11,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
-  /* config options here */
+  // Riusa per 30s le pagine già viste (cambio scheda avanti/indietro istantaneo). Le azioni sui dati invalidano la cache.
+  experimental: { staleTimes: { dynamic: 30, static: 180 } },
   turbopack: {
     rules: {
       "*.css": {
