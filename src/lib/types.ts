@@ -5,7 +5,7 @@ export interface Profile { id: string; email: string; full_name: string | null; 
 export interface Contact {
   id: string; first_name: string | null; last_name: string | null; display_name: string | null;
   email: string | null; phone: string | null; preferred_channel: string | null; language: string;
-  city: string | null; country: string | null; job_title: string | null; kind: string; lifecycle: string;
+  city: string | null; country: string | null; job_title: string | null; kind: string; lifecycle: string; lead_stage: string | null;
   source: string; source_detail: string | null; campaign: string | null; attribution_status: string;
   first_seen_at: string; sim_preferences: string | null; do_not_contact: boolean;
   archived_at: string | null; merged_into: string | null; created_at: string; updated_at: string;

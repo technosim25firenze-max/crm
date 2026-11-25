@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useEffect } from "react";
-import Link from "next/link";
+import Link from "@/components/nav-link";
 import { Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { t } from "@/lib/i18n/it";

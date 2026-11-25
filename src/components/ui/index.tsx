@@ -1,5 +1,5 @@
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/nav-link";
 import { cn } from "@/lib/utils";
 
 const btn = {
@@ -74,16 +74,4 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
   );
 }
 
-export function Tabs({ items }: { items: { href: string; label: string; active: boolean }[] }) {
-  return (
-    <nav className="mb-6 flex gap-1 border-b border-border" aria-label="Schede">
-      {items.map((i) => (
-        <Link key={i.href} href={i.href}
-          className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-            i.active ? "border-brand text-foreground" : "border-transparent text-muted hover:text-foreground")}>
-          {i.label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
+export { Tabs } from "./tabs";

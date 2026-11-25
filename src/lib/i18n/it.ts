@@ -21,6 +21,11 @@ export const it = {
     forgotSend: "Invia il link", forgotSent: "Se l'indirizzo è registrato, riceverai a breve un'email con il link. Aprilo da questo stesso browser.", forgotError: "Impossibile inviare l'email. Riprova tra qualche minuto.", backToLogin: "Torna all'accesso",
   },
   roles: { owner: "Titolare", admin: "Amministratore", marketing: "Marketing", staff: "Staff" },
+  leads: {
+    title: "Lead", tab: "Lead", stage: "Fase lead", move: "Sposta in", notALead: "Non è un lead",
+    empty: "Nessun lead in bacheca.", emptyHint: "I nuovi contatti entrano in \"Da contattare\". Puoi anche assegnare una fase dalla scheda di un contatto.",
+    stages: { to_contact: "Da contattare", called: "Chiamato", message_sent: "Messaggio inviato", visit_booked: "Visita prenotata", quote_sent: "Preventivo inviato", follow_up: "Follow up", closed: "Chiuso", lost: "Perso" },
+  },
   contacts: {
     title: "Contatti", people: "Persone", companies: "Aziende", new: "Nuovo contatto", newCompany: "Nuova azienda",
     empty: "Nessun contatto trovato.", emptyHint: "Aggiungi il primo contatto o importa un file CSV.",
@@ -137,6 +142,9 @@ export const it = {
     priorities: { low: "Bassa", normal: "Normale", high: "Alta" }, followUp: "Ricontatto", quick: "Ricontatto",
   },
   finance: {
+    stripeTitle: "Incassi Stripe", stripeHint: "Totale = incassato − commissioni Stripe − IVA. Dati al netto dei rimborsi.",
+    stripeMissingFee: "Commissione non nota per {n} incassi (serve STRIPE_SECRET_KEY).",
+    stripe: { collected: "Totale incassato", fee: "Commissioni Stripe", vat: "IVA", total: "Totale" },
     title: "Finanze", tabs: { summary: "Riepilogo", payments: "Pagamenti", expenses: "Spese" },
     collected: "Incassato", collectedNet: "Incassato (IVA esclusa)", vat: "IVA", refunds: "Rimborsi", avgTicket: "Scontrino medio", count: "Incassi",
     byMethod: "Per metodo di pagamento", outstanding: "Da incassare", outstandingHint: "Trattative acquisite e prenotazioni con un residuo.",

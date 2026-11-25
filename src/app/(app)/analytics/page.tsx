@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav-link";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, requirePermission } from "@/lib/auth";
 import { can } from "@/lib/permissions";

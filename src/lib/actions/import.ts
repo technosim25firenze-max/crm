@@ -54,7 +54,7 @@ export async function commitImport(raw: unknown, filename: string): Promise<{ cr
     const { data, error } = await supabase.from("contacts").insert(chunk.map((r) => ({
       first_name: r.first_name?.trim() || null, last_name: r.last_name?.trim() || null,
       email: r.email?.trim() || null, phone: r.phone?.trim() || null, city: r.city?.trim() || null,
-      source: "unknown", attribution_status: "unknown", // origine storica ignota: non si presume marketing
+      lead_stage: "to_contact", source: "unknown", attribution_status: "unknown", // origine storica ignota: non si presume marketing
     }))).select("id");
     if (error || !data) return { error: t.common.genericError, created };
     created += data.length;

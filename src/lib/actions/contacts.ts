@@ -44,7 +44,7 @@ export async function createContact(_: ActionState | null, fd: FormData): Promis
     if (duplicates.length) return { duplicates };
   }
   const { company_name, ...contact } = parsed.data;
-  const { data, error } = await supabase.from("contacts").insert(contact).select("id").single();
+  const { data, error } = await supabase.from("contacts").insert({ ...contact, lead_stage: "to_contact" }).select("id").single();
   if (error || !data) return errorState();
   if (company_name) {
     // Riusa l'azienda con lo stesso nome (senza distinguere maiuscole), altrimenti la crea.

@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useNav } from "@/components/nav-provider";
 import { t } from "@/lib/i18n/it";
 
 /** Menu a tre puntini accanto alle schede: "Nascondi prenotazioni di prova" (attivo di default). */
 export function TestToggle({ showTests }: { showTests: boolean }) {
-  const router = useRouter();
+  const nav = useNav();
   const pathname = usePathname();
   const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const [, startTransition] = useTransition();
-  // Stato locale: la spunta risponde subito, senza attendere il ricaricamento della pagina.
-  const [hidden, setHidden] = useOptimistic(!showTests);
+  const hidden = nav?.target ? !nav.target.includes("test=1") : !showTests;
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +28,7 @@ export function TestToggle({ showTests }: { showTests: boolean }) {
     const next = new URLSearchParams(params.toString());
     if (hide) next.delete("test"); else next.set("test", "1");
     const qs = next.toString();
-    startTransition(() => { setHidden(hide); router.push(qs ? `${pathname}?${qs}` : pathname); });
+    nav?.go(qs ? `${pathname}?${qs}` : pathname);
   }
 
   return (

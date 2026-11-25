@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Link from "@/components/nav-link";
+import { LeadStageSelect } from "@/components/lead-stage-select";
 import { notFound } from "next/navigation";
 import { Mail, Phone, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -91,6 +92,7 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
             <dl>
               <Row label={t.contacts.city}>{[c.city, c.country].filter(Boolean).join(", ")}</Row>
               <Row label={t.contacts.jobTitle}>{c.job_title}</Row>
+              <Row label={t.leads.stage}><LeadStageSelect id={id} stage={c.lead_stage} /></Row>
               <Row label={t.contacts.lifecycle}>{t.lifecycle[c.lifecycle as keyof typeof t.lifecycle]}</Row>
               <Row label={t.contacts.preferredChannel}>{c.preferred_channel ? t.channels[c.preferred_channel as keyof typeof t.channels] : null}</Row>
               <Row label={t.contacts.simPreferences}>{c.sim_preferences}</Row>

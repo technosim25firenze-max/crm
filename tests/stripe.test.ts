@@ -28,6 +28,11 @@ describe("mappatura eventi Stripe", () => {
   it("charge.succeeded → pagamento in centesimi con email normalizzata", () => {
     expect(mapStripeEvent(ev("charge.succeeded"))).toMatchObject({ kind: "charge", chargeId: "ch_1", amount: 4500, refunded: 0, email: "mario@example.com", reference: "Acconto" });
   });
+  it("legge l'id della balance transaction (stringa o oggetto espanso)", () => {
+    expect(mapStripeEvent(ev("charge.succeeded", { balance_transaction: "txn_1" }))).toMatchObject({ balanceTransaction: "txn_1" });
+    expect(mapStripeEvent(ev("charge.succeeded", { balance_transaction: { id: "txn_2", fee: 100 } }))).toMatchObject({ balanceTransaction: "txn_2" });
+    expect(mapStripeEvent(ev("charge.succeeded"))).toMatchObject({ balanceTransaction: null });
+  });
   it("charge.refunded → importo rimborsato cumulato", () => {
     expect(mapStripeEvent(ev("charge.refunded", { amount_refunded: 1500 }))).toMatchObject({ kind: "charge", refunded: 1500 });
   });

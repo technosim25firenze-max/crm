@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav-link";
 import { Check, Trash2 } from "lucide-react";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { deleteTask, toggleTask } from "@/lib/actions/sales";

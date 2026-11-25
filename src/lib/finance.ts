@@ -41,6 +41,27 @@ export function summarizePayments(rows: PaymentRow[]): PaymentSummary {
   return s;
 }
 
+export interface StripeSummary {
+  collectedCents: number;  // totale incassato (lordo IVA), al netto dei rimborsi
+  feeCents: number;        // commissioni Stripe sugli incassi
+  vatCents: number;        // IVA scorporata dall'incassato
+  totalCents: number;      // quanto resta: incassato − commissioni − IVA
+  missingFee: number;      // incassi senza commissione nota
+}
+
+/** Riepilogo dei soli incassi Stripe, con le quattro voci separate. Le commissioni non vengono restituite sui rimborsi. */
+export function summarizeStripe(rows: (PaymentRow & { stripe_fee_cents?: number | null })[]): StripeSummary {
+  const stripe = rows.filter((p) => p.method === "stripe");
+  const base = summarizePayments(stripe);
+  const payments = stripe.filter((p) => p.kind === "payment");
+  const feeCents = payments.reduce((a, p) => a + (p.stripe_fee_cents ?? 0), 0);
+  return {
+    collectedCents: base.grossCents, feeCents, vatCents: base.vatCents,
+    totalCents: base.grossCents - feeCents - base.vatCents,
+    missingFee: payments.filter((p) => p.stripe_fee_cents == null).length,
+  };
+}
+
 /** Residuo da incassare: valore concordato meno incassato (netto rimborsi), mai negativo. */
 export function outstandingCents(agreedCents: number | null | undefined, collectedCents: number): number {
   return Math.max(0, (agreedCents ?? 0) - collectedCents);

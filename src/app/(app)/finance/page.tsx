@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/nav-link";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
 import { Badge, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
@@ -8,14 +8,14 @@ import { LinkContactButton } from "@/components/booking-forms";
 import { NewExpenseButton, RecordPaymentButton, RefundButton } from "@/components/finance-forms";
 import { deleteExpense, setExpensePaid, setReconciled } from "@/lib/actions/finance";
 import { previousRange, resolveRange } from "@/lib/dates";
-import { bookingOutstandingCents, contributionMarginCents, growthPercent, outstandingCents, summarizeExpenses, summarizePayments, type PaymentRow } from "@/lib/finance";
+import { bookingOutstandingCents, contributionMarginCents, growthPercent, outstandingCents, summarizeExpenses, summarizePayments, summarizeStripe, type PaymentRow } from "@/lib/finance";
 import { formatDate, formatDateTime, formatEuro, formatNumber } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
 
 export const metadata = { title: t.finance.title };
 
 type Search = { tab?: string; range?: string; from?: string; to?: string };
-type PayRow = PaymentRow & { id: string; refund_of: string | null; reference: string | null; reconciled: boolean; contact_id: string | null; contacts: { display_name: string } | null; booking_id: string | null };
+type PayRow = PaymentRow & { stripe_fee_cents: number | null; id: string; refund_of: string | null; reference: string | null; reconciled: boolean; contact_id: string | null; contacts: { display_name: string } | null; booking_id: string | null };
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return <Card className="p-4"><p className="text-[13px] text-muted">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>{sub && <p className="mt-1 text-xs text-muted">{sub}</p>}</Card>;
@@ -33,7 +33,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const needPays = tab !== "expenses", needSummary = tab === "summary", needExp = tab !== "payments";
   const none = Promise.resolve({ data: null });
   const [{ data: payData }, { data: prevData }, { data: expData }, { data: services }, { data: categories }] = await Promise.all([
-    needPays ? supabase.from("payments").select("id,kind,refund_of,amount_cents,vat_rate,method,paid_at,reference,reconciled,contact_id,booking_id,contacts(display_name)")
+    needPays ? supabase.from("payments").select("id,kind,refund_of,amount_cents,vat_rate,method,paid_at,reference,reconciled,contact_id,booking_id,stripe_fee_cents,contacts(display_name)")
       .gte("paid_at", range.from.toISOString()).lt("paid_at", range.to.toISOString()).order("paid_at", { ascending: false }).limit(2000) : none,
     needSummary ? supabase.from("payments").select("kind,amount_cents,vat_rate,method,paid_at").gte("paid_at", prev.from.toISOString()).lt("paid_at", prev.to.toISOString()).limit(5000) : none,
     needExp ? supabase.from("expenses").select("id,spent_on,supplier,description,net_cents,vat_cents,total_cents,payment_status,expense_categories(name,kind)")
@@ -44,6 +44,8 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const pays = (payData ?? []).map((p) => ({ ...p, contacts: p.contacts as unknown as { display_name: string } | null })) as PayRow[];
   const exps = (expData ?? []).map((e) => ({ ...e, cat: e.expense_categories as unknown as { name: string; kind: "fixed" | "variable" } | null }));
   const sum = summarizePayments(pays);
+  const stripeSum = summarizeStripe(pays);
+  const hasStripe = pays.some((p) => p.method === "stripe");
   const prevSum = summarizePayments((prevData ?? []) as PaymentRow[]);
   const expSum = summarizeExpenses(exps.map((e) => ({ net_cents: e.net_cents, vat_cents: e.vat_cents, category_kind: e.cat?.kind })));
   const growth = growthPercent(sum.netCents, prevSum.netCents);
@@ -82,6 +84,20 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           <Kpi label={t.finance.outstanding} value={formatEuro(outstandingTotal)} sub={`${formatNumber(outstanding.length)} ${t.finance.items}`} />
           <Kpi label={t.finance.margin} value={formatEuro(contributionMarginCents(sum.netCents, expSum.netCents))} sub={`${t.finance.expensesTotal}: ${formatEuro(expSum.netCents)}`} />
         </div>
+        {hasStripe && (
+          <Card className="p-5">
+            <h2 className="mb-4 text-sm font-semibold">{t.finance.stripeTitle}</h2>
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {([["collected", stripeSum.collectedCents, "text-foreground"], ["fee", -stripeSum.feeCents, "text-brand"], ["vat", -stripeSum.vatCents, "text-muted"], ["total", stripeSum.totalCents, "text-foreground"]] as const).map(([k, v, tone]) => (
+                <div key={k} className={k === "total" ? "lg:border-l lg:border-border lg:pl-4" : ""}>
+                  <dt className="text-[13px] text-muted">{t.finance.stripe[k]}</dt>
+                  <dd className={`mt-1 text-2xl font-semibold tracking-[-0.02em] tabular-nums ${tone}`}>{v < 0 ? "−" : ""}{formatEuro(Math.abs(v))}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-xs text-muted">{t.finance.stripeHint}{stripeSum.missingFee > 0 && ` ${t.finance.stripeMissingFee.replace("{n}", String(stripeSum.missingFee))}`}</p>
+          </Card>
+        )}
         <Card className="p-4">
           <h2 className="mb-3 text-sm font-semibold">{t.finance.trend}</h2>
           {chart.length ? <BarsChart data={chart} euro /> : <EmptyState title={t.analytics.noData} />}
@@ -135,7 +151,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                     <td className="whitespace-nowrap px-4 py-3">{formatDateTime(p.paid_at)}</td>
                     <td className="px-4 py-3">{p.contact_id ? <Link className="font-medium hover:underline" href={`/contacts/${p.contact_id}`}>{p.contacts?.display_name}</Link> : <LinkContactButton entity="payment" id={p.id} />}
                       {p.reference && <span className="block text-xs text-muted">{p.reference}</span>}</td>
-                    <td className="px-4 py-3"><span className="mr-1.5">{t.finance.methods[p.method as keyof typeof t.finance.methods]}</span>{p.kind === "refund" && <Badge tone="brand">{t.finance.kindRefund}</Badge>}{(refunded.get(p.id) ?? 0) > 0 && <Badge tone="warning">{t.finance.refunded}</Badge>}</td>
+                    <td className="px-4 py-3"><span className="mr-1.5">{t.finance.methods[p.method as keyof typeof t.finance.methods]}</span>{p.kind === "refund" && <Badge tone="brand">{t.finance.kindRefund}</Badge>}{p.stripe_fee_cents != null && <span className="block text-xs text-muted">{t.finance.stripe.fee}: {formatEuro(p.stripe_fee_cents)}</span>}{(refunded.get(p.id) ?? 0) > 0 && <Badge tone="warning">{t.finance.refunded}</Badge>}</td>
                     <td className={`whitespace-nowrap px-4 py-3 font-medium ${sign < 0 ? "text-brand" : ""}`}>{sign < 0 ? "−" : ""}{formatEuro(p.amount_cents)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{sign < 0 ? "−" : ""}{formatEuro(Math.round(p.amount_cents / (1 + p.vat_rate / 100)))}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">

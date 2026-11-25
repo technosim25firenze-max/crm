@@ -13,13 +13,14 @@ const charge = z.object({
   created: z.number().int(),
   description: z.string().nullish(),
   receipt_email: z.string().nullish(),
+  balance_transaction: z.union([z.string(), z.object({ id: z.string() }).transform((o) => o.id)]).nullish(),
   billing_details: z.object({ email: z.string().nullish(), name: z.string().nullish() }).nullish(),
 });
 const eventSchema = z.object({ id: z.string().min(1), type: z.string(), data: z.object({ object: z.record(z.string(), z.unknown()) }) });
 
 export type StripeMapped =
   | { kind: "ignore" }
-  | { kind: "charge"; chargeId: string; amount: number; refunded: number; email: string | null; paidAt: string; reference: string }
+  | { kind: "charge"; chargeId: string; balanceTransaction: string | null; amount: number; refunded: number; email: string | null; paidAt: string; reference: string }
   | { kind: "error"; reason: string };
 
 /** Interpreta un evento Stripe: ci interessano solo gli addebiti riusciti (`charge.succeeded`) e i rimborsi (`charge.refunded`). */
@@ -34,9 +35,26 @@ export function mapStripeEvent(raw: unknown): StripeMapped {
   if (c.data.amount <= 0) return { kind: "ignore" };
   const email = (c.data.billing_details?.email || c.data.receipt_email || "").trim().toLowerCase() || null;
   return {
-    kind: "charge", chargeId: c.data.id, amount: c.data.amount, refunded: Math.min(c.data.amount_refunded, c.data.amount), email,
+    kind: "charge", chargeId: c.data.id, balanceTransaction: c.data.balance_transaction ?? null, amount: c.data.amount, refunded: Math.min(c.data.amount_refunded, c.data.amount), email,
     paidAt: new Date(c.data.created * 1000).toISOString(), reference: (c.data.description?.trim() || `Stripe ${c.data.id}`).slice(0, 200),
   };
+}
+
+/**
+ * Commissione Stripe di un addebito, letta dalla "balance transaction" (non è nel payload del webhook).
+ * Richiede STRIPE_SECRET_KEY; senza chiave o in caso di errore restituisce null e l'incasso resta valido senza commissione.
+ */
+export async function fetchStripeFee(balanceTransactionId: string | null): Promise<number | null> {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key || !balanceTransactionId) return null;
+  try {
+    const res = await fetch(`https://api.stripe.com/v1/balance_transactions/${encodeURIComponent(balanceTransactionId)}`, {
+      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const bt = z.object({ fee: z.number().int().nonnegative(), currency: z.string() }).safeParse(await res.json());
+    return bt.success && bt.data.currency.toLowerCase() === "eur" ? bt.data.fee : null;
+  } catch { return null; }
 }
 
 /** Elabora un evento già salvato. Idempotente: pagamento per `charge.id`, rimborsi per differenza cumulata. */
@@ -56,16 +74,22 @@ export async function processStripeEvent(
     const { data } = await admin.from("contacts").select("id").eq("email_norm", m.email).is("archived_at", null).order("created_at").limit(1);
     contactId = data?.[0]?.id ?? null;
   }
-  let { data: orig } = await admin.from("payments").select("id").eq("source", "stripe").eq("external_id", m.chargeId).maybeSingle();
+  let { data: orig } = await admin.from("payments").select("id,stripe_fee_cents").eq("source", "stripe").eq("external_id", m.chargeId).maybeSingle();
   if (!orig) {
+    const fee = await fetchStripeFee(m.balanceTransaction);
     const ins = await admin.from("payments").insert({
       kind: "payment", amount_cents: m.amount, vat_rate: 22, method: "stripe", paid_at: m.paidAt, reference: m.reference,
-      source: "stripe", external_id: m.chargeId, contact_id: contactId, recorded_by: null,
-    }).select("id").single();
+      source: "stripe", external_id: m.chargeId, contact_id: contactId, recorded_by: null, stripe_fee_cents: fee,
+    }).select("id,stripe_fee_cents").single();
     if (ins.error && ins.error.code !== "23505") return fail(ins.error.message);
-    orig = ins.data ?? (await admin.from("payments").select("id").eq("source", "stripe").eq("external_id", m.chargeId).maybeSingle()).data;
+    orig = ins.data ?? (await admin.from("payments").select("id,stripe_fee_cents").eq("source", "stripe").eq("external_id", m.chargeId).maybeSingle()).data;
   }
   if (!orig) return fail("Pagamento non trovato dopo l'inserimento");
+  if (orig.stripe_fee_cents == null) {
+    // Recupero tardivo (es. chiave segreta aggiunta dopo il primo incasso).
+    const fee = await fetchStripeFee(m.balanceTransaction);
+    if (fee != null) await admin.from("payments").update({ stripe_fee_cents: fee }).eq("id", orig.id);
+  }
 
   if (m.refunded > 0) {
     const { data: rs } = await admin.from("payments").select("amount_cents").eq("kind", "refund").eq("refund_of", orig.id);

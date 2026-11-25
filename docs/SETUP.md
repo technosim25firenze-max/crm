@@ -42,7 +42,7 @@ Colori e logo ricavati da technosim25.com (`#e01f25`, `#3f843e`, `#030303`). I f
 1. Stripe → Sviluppatori → Webhook → Aggiungi endpoint: `https://<dominio>/api/webhooks/stripe`.
 2. Eventi da selezionare: `charge.succeeded` e `charge.refunded` (gli altri vengono ignorati).
 3. Copia il "Segreto di firma" (`whsec_…`) in `STRIPE_WEBHOOK_SECRET` su Vercel (e in `.env.local`), poi Redeploy.
-4. La chiave segreta Stripe non serve a questa integrazione: non metterla se non è necessaria.
+4. Per registrare le **commissioni Stripe** serve anche la chiave segreta (`STRIPE_SECRET_KEY`, chiave ristretta con permesso di sola lettura su "Balance transactions"): il webhook non contiene la commissione, quindi viene letta da Stripe. Senza chiave gli incassi vengono registrati ugualmente, ma senza commissione.
 5. Se Stripe incassa anche gli acconti delle prenotazioni online, disattiva in Impostazioni → Integrazioni la replica dell'incassato dal webhook prenotazioni, per non contare due volte lo stesso incasso.
 
 I pagamenti Stripe sono collegati al contatto con la stessa email (altrimenti restano "non collegati" e si collegano a mano). Solo EUR.

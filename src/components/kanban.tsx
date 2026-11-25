@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/nav-link";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Badge, Button } from "@/components/ui";
 import { moveOpportunity } from "@/lib/actions/sales";

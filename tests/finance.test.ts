@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseEuro, vatSplit } from "@/lib/money";
-import { bookingOutstandingCents, contributionMarginCents, growthPercent, outstandingCents, summarizeExpenses, summarizePayments, type PaymentRow } from "@/lib/finance";
+import { bookingOutstandingCents, contributionMarginCents, growthPercent, outstandingCents, summarizeExpenses, summarizePayments, summarizeStripe, type PaymentRow } from "@/lib/finance";
 import { previousRange, resolveRange } from "@/lib/dates";
 import { romeWeekdayHour } from "@/lib/format";
 
@@ -131,5 +131,20 @@ describe("stato pagamento prenotazione manuale", () => {
     expect(manualPaymentStatus(9000, 9000, 3000)).toBe("partially_refunded");
     expect(manualPaymentStatus(9000, 9000, 9000)).toBe("refunded");
     expect(manualPaymentStatus(null, 100, 0)).toBe("partially_paid");
+  });
+});
+
+describe("incassi Stripe separati", () => {
+  const p = (o: Partial<PaymentRow> & { stripe_fee_cents?: number | null }) => ({ kind: "payment", amount_cents: 12200, vat_rate: 22, method: "stripe", paid_at: "2026-11-10T10:00:00Z", ...o }) as PaymentRow & { stripe_fee_cents?: number | null };
+  it("separa incassato, commissioni, IVA e totale; ignora i metodi non Stripe", () => {
+    const s = summarizeStripe([p({ stripe_fee_cents: 200 }), p({ method: "cash" })]);
+    expect(s).toEqual({ collectedCents: 12200, feeCents: 200, vatCents: 2200, totalCents: 9800, missingFee: 0 });
+  });
+  it("i rimborsi riducono incassato e IVA ma non restituiscono la commissione; segnala commissioni mancanti", () => {
+    const s = summarizeStripe([p({ stripe_fee_cents: 200 }), p({ kind: "refund", amount_cents: 6100 }), p({ stripe_fee_cents: null })]);
+    expect(s.collectedCents).toBe(18300);
+    expect(s.feeCents).toBe(200);
+    expect(s.missingFee).toBe(1);
+    expect(s.totalCents).toBe(s.collectedCents - s.feeCents - s.vatCents);
   });
 });
