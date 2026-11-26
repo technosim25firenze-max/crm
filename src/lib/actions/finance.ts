@@ -6,7 +6,7 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { romeLocalToUtc } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
-import { dateField, euroField, positiveEuro, uuid } from "./fields";
+import { dateField, euroField, grossCents, positiveEuro, uuid, vatRateOf } from "./fields";
 import { errorState, logActivity, parseForm, type ActionState } from "./shared";
 import { syncManualBookingPayment } from "./bookings";
 
@@ -16,12 +16,7 @@ const paymentSchema = z.object({
   amount: positiveEuro.refine((v) => v !== undefined, { message: t.validation.required }),
   method: z.enum(METHODS),
   paid_at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, t.validation.date).optional(),
-  vat_rate: z.string().optional().transform((v, ctx) => {
-    if (v === undefined) return 22;
-    const n = Number(v.replace(",", "."));
-    if (!Number.isFinite(n) || n < 0 || n > 100) { ctx.addIssue({ code: "custom", message: t.validation.number }); return z.NEVER; }
-    return n;
-  }),
+  amount_vat: euroField,
   reference: z.string().max(200).optional(),
   notes: z.string().max(1000).optional(),
   contact_id: uuid, opportunity_id: uuid, booking_id: uuid, service_id: uuid,
@@ -39,6 +34,7 @@ export async function recordPayment(_: ActionState | null, fd: FormData): Promis
   const parsed = parseForm(paymentSchema, fd);
   if (parsed.fieldErrors) return { fieldErrors: parsed.fieldErrors };
   const d = parsed.data;
+  const gross = grossCents(d.amount, d.amount_vat)!;
   const paidAt = d.paid_at ? romeLocalToUtc(d.paid_at) : new Date();
   if (!paidAt) return { fieldErrors: { paid_at: t.validation.date } };
   const supabase = await createClient();
@@ -47,13 +43,13 @@ export async function recordPayment(_: ActionState | null, fd: FormData): Promis
   if (fd.get("confirm") !== "1" && (d.contact_id || d.booking_id)) {
     const from = new Date(paidAt.getTime() - 24 * 3600_000).toISOString();
     const to = new Date(paidAt.getTime() + 24 * 3600_000).toISOString();
-    let q = supabase.from("payments").select("id", { head: true, count: "exact" }).eq("kind", "payment").eq("amount_cents", d.amount!).gte("paid_at", from).lte("paid_at", to);
+    let q = supabase.from("payments").select("id", { head: true, count: "exact" }).eq("kind", "payment").eq("amount_cents", gross).gte("paid_at", from).lte("paid_at", to);
     q = d.booking_id ? q.eq("booking_id", d.booking_id) : q.eq("contact_id", d.contact_id!);
     const { count } = await q;
     if (count) return { warning: t.finance.duplicateBody };
   }
   const { error } = await supabase.from("payments").insert({
-    kind: "payment", amount_cents: d.amount, method: d.method, paid_at: paidAt.toISOString(), vat_rate: d.vat_rate,
+    kind: "payment", amount_cents: gross, method: d.method, paid_at: paidAt.toISOString(), vat_rate: vatRateOf(d.amount!, d.amount_vat),
     reference: d.reference ?? null, notes: d.notes ?? null, contact_id: d.contact_id ?? null, opportunity_id: d.opportunity_id ?? null,
     booking_id: d.booking_id ?? null, service_id: d.service_id ?? null, recorded_by: me.id,
   });

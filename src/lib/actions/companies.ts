@@ -2,8 +2,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getProfile } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n/it";
+import { resolveCompany } from "./company-link";
+import { resolveContact } from "./contact-link";
 import { errorState, logActivity, parseForm, type ActionState } from "./shared";
 
 const opt = (max = 200) => z.string().max(max, t.validation.tooLong).optional();
@@ -46,11 +50,13 @@ export async function updateCompany(id: string, _: ActionState | null, fd: FormD
 
 /** Associa un contatto a un'azienda (molti-a-molti, con ruolo). `from` indica la pagina da aggiornare. */
 export async function linkContactCompany(from: string, fd: FormData) {
-  const contactId = String(fd.get("contact_id") ?? "");
-  const companyId = String(fd.get("company_id") ?? "");
+  const supabase = await createClient();
+  const contact = await resolveContact(supabase, fd);
+  const company = await resolveCompany(supabase, fd);
+  const contactId = contact.id ?? "";
+  const companyId = company.id ?? "";
   const role = String(fd.get("role") ?? "").trim().slice(0, 100) || null;
   if (!contactId || !companyId) return;
-  const supabase = await createClient();
   await supabase.from("company_contacts").upsert({ contact_id: contactId, company_id: companyId, role });
   await logActivity(supabase, { contact_id: contactId, company_id: companyId, type: "company_linked", summary: "Contatto collegato all'azienda" });
   revalidatePath(from);
@@ -60,4 +66,14 @@ export async function unlinkContactCompany(from: string, contactId: string, comp
   const supabase = await createClient();
   await supabase.from("company_contacts").delete().eq("contact_id", contactId).eq("company_id", companyId);
   revalidatePath(from);
+}
+
+export async function archiveCompany(id: string) {
+  const me = await getProfile();
+  if (!can(me.role, "contacts.archive")) return;
+  const supabase = await createClient();
+  await supabase.from("companies").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  await logActivity(supabase, { company_id: id, type: "archived", summary: "Azienda archiviata" });
+  revalidatePath("/companies");
+  redirect("/companies");
 }

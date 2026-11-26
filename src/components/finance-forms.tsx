@@ -3,20 +3,23 @@ import { useActionState, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { MoneyVat } from "@/components/money-vat";
+import { DEFAULT_VAT_RATE, parseEuro, splitStored, vatSplit } from "@/lib/money";
 import { ContactPicker } from "@/components/contact-picker";
 import { createExpense, recordPayment, recordRefund } from "@/lib/actions/finance";
 import { toRomeLocalInput } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
 import type { ActionState } from "@/lib/actions/shared";
 
-export interface PaymentPreset { contact?: { id: string; name: string } | null; opportunity_id?: string; booking_id?: string; amount?: string }
+export interface PaymentPreset { contact?: { id: string; name: string } | null; opportunity_id?: string; booking_id?: string; amount?: string; noVat?: boolean }
 const METHODS = ["cash", "card_pos", "bank_transfer", "gift_card", "other"] as const;
 
 function PaymentForm({ preset, services, bookings, onDone }: {
   preset?: PaymentPreset; services: { id: string; name: string; vat_rate: number }[]; bookings: { id: string; label: string }[]; onDone: () => void;
 }) {
   const [state, action] = useActionState(recordPayment, null as ActionState | null);
-  const [vat, setVat] = useState("22");
+  const [rate, setRate] = useState(preset?.noVat ? 0 : DEFAULT_VAT_RATE);
+  const presetSplit = preset?.amount ? splitStored(parseEuro(preset.amount), vatSplit(parseEuro(preset.amount) ?? 0, preset.noVat ? 0 : DEFAULT_VAT_RATE).vat) : null;
   const [now] = useState(() => toRomeLocalInput());
   useEffect(() => { if (state?.ok) onDone(); }, [state, onDone]);
   const e = state?.fieldErrors ?? {};
@@ -25,7 +28,7 @@ function PaymentForm({ preset, services, bookings, onDone }: {
       {preset?.opportunity_id && <input type="hidden" name="opportunity_id" value={preset.opportunity_id} />}
       {preset?.booking_id && <input type="hidden" name="booking_id" value={preset.booking_id} />}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={t.finance.amount} error={e.amount}><Input name="amount" inputMode="decimal" placeholder="0,00" defaultValue={preset?.amount} autoFocus required /></Field>
+        <MoneyVat className="sm:col-span-2" name="amount" label={t.finance.amount} rate={rate} net={presetSplit?.net} vat={presetSplit?.vat} error={e.amount} autoFocus required />
         <Field label={t.finance.method}>
           <Select name="method" defaultValue="card_pos">{METHODS.map((m) => <option key={m} value={m}>{t.finance.methods[m]}</option>)}</Select>
         </Field>
@@ -39,13 +42,10 @@ function PaymentForm({ preset, services, bookings, onDone }: {
           </Field>
         )}
       </div>
-      <details className="rounded-lg border border-border px-3 py-2">
-        <summary className="cursor-pointer text-sm font-medium">{t.common.more}</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label={t.finance.paidAt} error={e.paid_at}><Input name="paid_at" type="datetime-local" defaultValue={now} /></Field>
-          <Field label={t.finance.vatRate} error={e.vat_rate}><Input name="vat_rate" inputMode="decimal" value={vat} onChange={(ev) => setVat(ev.target.value)} /></Field>
           <Field label={t.finance.service}>
-            <Select name="service_id" defaultValue="" onChange={(ev) => { const s = services.find((x) => x.id === ev.target.value); if (s) setVat(String(s.vat_rate)); }}>
+            <Select name="service_id" defaultValue="" onChange={(ev) => { const s = services.find((x) => x.id === ev.target.value); if (s) setRate(Number(s.vat_rate)); }}>
               <option value="">{t.common.none}</option>
               {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
@@ -53,7 +53,6 @@ function PaymentForm({ preset, services, bookings, onDone }: {
           <Field label={t.finance.reference}><Input name="reference" /></Field>
           <Field label={t.finance.notes} className="sm:col-span-2"><Textarea name="notes" /></Field>
         </div>
-      </details>
       <p className="text-xs text-muted">{t.finance.stripeNote}</p>
       {state?.warning && (
         <div className="rounded-lg border border-amber-300 bg-warning-soft p-3 text-sm">
@@ -67,10 +66,10 @@ function PaymentForm({ preset, services, bookings, onDone }: {
   );
 }
 
-export const RecordPaymentButton = ({ preset, services, bookings = [], variant = "primary", label }: {
-  preset?: PaymentPreset; services: { id: string; name: string; vat_rate: number }[]; bookings?: { id: string; label: string }[]; variant?: "primary" | "secondary"; label?: string;
+export const RecordPaymentButton = ({ preset, services, bookings = [], variant = "primary", label, menu }: {
+  menu?: boolean; preset?: PaymentPreset; services: { id: string; name: string; vat_rate: number }[]; bookings?: { id: string; label: string }[]; variant?: "primary" | "secondary"; label?: string;
 }) => (
-  <Modal trigger={label ?? t.finance.recordPayment} title={t.finance.recordPayment} variant={variant}>
+  <Modal trigger={label ?? t.finance.recordPayment} title={t.finance.recordPayment} variant={variant} menu={menu}>
     {(close) => <PaymentForm preset={preset} services={services} bookings={bookings} onDone={close} />}
   </Modal>
 );
@@ -116,8 +115,6 @@ function ExpenseForm({ categories, onDone }: { categories: { id: string; name: s
           <Select name="payment_status" defaultValue="paid"><option value="paid">{t.finance.paid}</option><option value="unpaid">{t.finance.unpaid}</option></Select>
         </Field>
       </div>
-      <details className="rounded-lg border border-border px-3 py-2">
-        <summary className="cursor-pointer text-sm font-medium">{t.common.more}</summary>
         <div className="mt-3 grid gap-3">
           <Field label={t.finance.description}><Input name="description" /></Field>
           <Field label={t.finance.document} error={e.document_url}><Input name="document_url" placeholder="https://" /></Field>
@@ -126,7 +123,6 @@ function ExpenseForm({ categories, onDone }: { categories: { id: string; name: s
               {(["cash", "card_pos", "bank_transfer", "other"] as const).map((m) => <option key={m} value={m}>{t.finance.methods[m]}</option>)}</Select>
           </Field>
         </div>
-      </details>
       {state?.error && <p role="alert" className="text-sm text-brand">{state.error}</p>}
       <div className="flex justify-end"><SubmitButton>{t.common.save}</SubmitButton></div>
     </form>

@@ -25,6 +25,7 @@ export function ContactForm({ action, contact, onDone }: { action: Action; conta
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t.contacts.firstName} error={err.first_name}><Input name="first_name" defaultValue={v("first_name")} autoFocus /></Field>
         <Field label={t.contacts.lastName} error={err.last_name}><Input name="last_name" defaultValue={v("last_name")} /></Field>
+        {!contact && <Field label={t.contacts.companyName} error={err.company_name} className="sm:col-span-2"><Input name="company_name" /></Field>}
         <Field label={t.contacts.email} error={err.email}><Input name="email" type="email" defaultValue={v("email")} /></Field>
         <Field label={t.contacts.phone} error={err.phone}><Input name="phone" type="tel" defaultValue={v("phone")} /></Field>
         <Field label={t.contacts.kind}>
@@ -32,24 +33,25 @@ export function ContactForm({ action, contact, onDone }: { action: Action; conta
             {Object.entries(t.kinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </Select>
         </Field>
+        <Field label={t.contacts.source}>
+          <Select name="source" defaultValue={contact?.source ?? "unknown"}>
+            <option value="unknown">{t.sources.unknown}</option>
+            {t.sourceOptions.map((k) => <option key={k} value={k}>{t.sources[k]}</option>)}
+            {/* Origine storica non più in elenco: resta selezionata per non perderla in modifica. */}
+            {contact && contact.source !== "unknown" && !(t.sourceOptions as readonly string[]).includes(contact.source) &&
+              <option value={contact.source}>{t.sources[contact.source as keyof typeof t.sources] ?? contact.source}</option>}
+          </Select>
+        </Field>
         <Field label={t.contacts.city} error={err.city}><Input name="city" defaultValue={v("city")} /></Field>
+        {!contact && <Field label={t.contacts.note} error={err.note} className="sm:col-span-2"><Textarea name="note" rows={3} /></Field>}
       </div>
 
-      <details className="rounded-control border border-border px-3 py-2" open={!!contact}>
-        <summary className="cursor-pointer text-sm font-medium">{t.common.more}</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label={t.contacts.lifecycle}>
             <Select name="lifecycle" defaultValue={contact?.lifecycle ?? "prospect"}>
               {Object.entries(t.lifecycle).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </Select>
           </Field>
-          <Field label={t.contacts.source}>
-            <Select name="source" defaultValue={contact?.source ?? "unknown"}>
-              {Object.entries(t.sources).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </Select>
-          </Field>
-          <Field label={t.contacts.sourceDetail} className="sm:col-span-2"><Input name="source_detail" defaultValue={v("source_detail")} /></Field>
-          {!contact && <Field label={t.contacts.companyName}><Input name="company_name" /></Field>}
           <Field label={t.contacts.jobTitle}><Input name="job_title" defaultValue={v("job_title")} /></Field>
           <Field label={t.contacts.country}><Input name="country" defaultValue={v("country")} /></Field>
           <Field label={t.contacts.preferredChannel}>
@@ -60,7 +62,6 @@ export function ContactForm({ action, contact, onDone }: { action: Action; conta
           </Field>
           <Field label={t.contacts.simPreferences} className="sm:col-span-2"><Textarea name="sim_preferences" defaultValue={v("sim_preferences")} /></Field>
         </div>
-      </details>
 
       {state?.duplicates && (
         <div className="rounded-control border border-amber-300 bg-warning-soft p-3 text-sm">
@@ -97,15 +98,12 @@ export function CompanyForm({ action, company, onDone }: { action: Action; compa
         <Field label={t.company.city}><Input name="city" defaultValue={v("city")} /></Field>
         <Field label={t.company.industry}><Input name="industry" defaultValue={v("industry")} /></Field>
       </div>
-      <details className="rounded-control border border-border px-3 py-2" open={!!company}>
-        <summary className="cursor-pointer text-sm font-medium">{t.common.more}</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label={t.company.vat}><Input name="vat_number" defaultValue={v("vat_number")} /></Field>
           <Field label={t.company.size}><Input name="size_category" defaultValue={v("size_category")} /></Field>
           <Field label={t.company.website} error={err.website} className="sm:col-span-2"><Input name="website" placeholder="https://" defaultValue={v("website")} /></Field>
           <Field label={t.company.address} className="sm:col-span-2"><Input name="address" defaultValue={v("address")} /></Field>
         </div>
-      </details>
       <Errors state={state} />
       <div className="flex justify-end"><SubmitButton>{t.common.save}</SubmitButton></div>
     </form>

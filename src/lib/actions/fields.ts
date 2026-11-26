@@ -22,3 +22,8 @@ export const intField = (min: number, max: number) => z.string().optional().tran
 });
 
 export const uuid = z.string().uuid().optional();
+
+/** Importo lordo da netto + IVA (IVA assente o vuota = nessuna IVA). Undefined se manca il netto. */
+export const grossCents = (net: number | undefined, vat: number | undefined) => (net === undefined ? undefined : net + (vat ?? 0));
+/** Aliquota (%) con quattro decimali ricavata da netto e IVA, per la colonna vat_rate dei pagamenti. */
+export const vatRateOf = (net: number, vat: number | undefined) => (net > 0 && vat ? Math.min(100, Math.round((vat / net) * 1_000_000) / 10_000) : 0);

@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { Badge, Button, Card, EmptyState, PageHeader, Textarea } from "@/components/ui";
+import { ActionMenu, menuItemClass } from "@/components/action-menu";
+import { Badge, Card, EmptyState, PageHeader, Textarea } from "@/components/ui";
 import { ConfirmButton } from "@/components/forms";
 import { CreateFromBookingButton, EditBookingButton, LinkContactButton } from "@/components/booking-forms";
 import { RecordPaymentButton } from "@/components/finance-forms";
@@ -12,6 +13,7 @@ import { deleteManualBooking, saveStaffNotes, setBookingStatus } from "@/lib/act
 import { loadBookingFormData } from "@/lib/booking-data";
 import { bookingOutstandingCents } from "@/lib/finance";
 import { formatDateTime, formatEuro, toRomeLocalInput } from "@/lib/format";
+import { splitStored } from "@/lib/money";
 import { t } from "@/lib/i18n/it";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -42,22 +44,30 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <PageHeader title={`${title}${b.booking_number ? ` · ${t.bookingsPage.number}${b.booking_number}` : ""}`}
+      <PageHeader back={{ href: "/bookings", label: t.bookingsPage.title }} title={`${title}${b.booking_number ? ` · ${t.bookingsPage.number}${b.booking_number}` : ""}`}
         actions={<>
           {finance && <RecordPaymentButton variant="secondary" services={(services ?? []).map((s) => ({ ...s, vat_rate: Number(s.vat_rate) }))}
-            preset={{ booking_id: id, contact: contact ? { id: contact.id, name: contact.display_name } : null, amount: residual > 0 ? (residual / 100).toFixed(2).replace(".", ",") : undefined }} />}
+            preset={{ noVat: true, booking_id: id, contact: contact ? { id: contact.id, name: contact.display_name } : null, amount: residual > 0 ? (residual / 100).toFixed(2).replace(".", ",") : undefined }} />}
           {manual && manage && (
             <EditBookingButton {...form} canPay={finance} def={{ id, service_name: b.service_name, resource_name: b.resource_name, starts_local: toRomeLocalInput(new Date(b.starts_at)), duration: minutes,
-              participants: b.participants, total: b.total_cents != null ? (b.total_cents / 100).toFixed(2).replace(".", ",") : "", status: b.status === "cancelled" ? "confirmed" : b.status, notes: b.notes, staff_notes: b.staff_notes }} />
+              participants: b.participants, total: splitStored(b.total_cents, b.vat_cents).net, total_vat: splitStored(b.total_cents, b.vat_cents).vat, status: b.status === "cancelled" ? "confirmed" : b.status, notes: b.notes, staff_notes: b.staff_notes }} />
+          )}
+          {manual && manage && (
+            <ActionMenu>
+              {b.status !== "cancelled" && (["completed", "no_show", "confirmed"] as const).filter((x) => x !== b.status).map((x) => (
+                <form key={x} action={setBookingStatus.bind(null, id, x)}><button type="submit" className={menuItemClass}>{t.bookingsPage.markAs} {t.bookingStatus[x].toLowerCase()}</button></form>
+              ))}
+              {b.status !== "cancelled"
+                ? <ConfirmButton menu label={t.bookingsPage.cancelBooking} title={t.bookingsPage.cancelBooking} body={t.bookingsPage.cancelBody} action={setBookingStatus.bind(null, id, "cancelled")} />
+                : <form action={setBookingStatus.bind(null, id, "confirmed")}><button type="submit" className={menuItemClass}>{t.tasks.reopen}</button></form>}
+              {can(me.role, "contacts.archive") && <ConfirmButton menu label={t.bookingsPage.deleteBooking} title={t.bookingsPage.deleteBooking} body={t.bookingsPage.deleteBody} action={deleteManualBooking.bind(null, id)} />}
+            </ActionMenu>
           )}
         </>} />
       <div className="-mt-3 mb-5 flex flex-wrap items-center gap-2 text-sm">
         <Badge>{manual ? t.bookingsPage.sourceManual : t.bookingsPage.sourceWebsite}</Badge>
         <Badge tone={b.status === "cancelled" || b.status === "no_show" ? "brand" : b.status === "completed" ? "success" : "neutral"}>{t.bookingStatus[b.status as keyof typeof t.bookingStatus]}</Badge>
         <Badge tone={b.payment_status === "paid" ? "success" : "warning"}>{t.paymentStatus[b.payment_status as keyof typeof t.paymentStatus]}</Badge>
-        {manual && manage && b.status !== "cancelled" && <ConfirmButton size="sm" variant="secondary" label={t.bookingsPage.cancelBooking} title={t.bookingsPage.cancelBooking} body={t.bookingsPage.cancelBody} action={setBookingStatus.bind(null, id, "cancelled")} />}
-        {manual && manage && b.status === "cancelled" && <form action={setBookingStatus.bind(null, id, "confirmed")}><SubmitButton size="sm" variant="secondary">{t.tasks.reopen}</SubmitButton></form>}
-        {manual && can(me.role, "contacts.archive") && <ConfirmButton size="sm" label={t.bookingsPage.deleteBooking} title={t.bookingsPage.deleteBooking} body={t.bookingsPage.deleteBody} action={deleteManualBooking.bind(null, id)} />}
       </div>
       {!manual && <p className="mb-4 text-sm text-muted">{t.bookingsPage.platformReadOnly}</p>}
 
@@ -105,16 +115,6 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             <Card className="p-4">
               <h2 className="mb-2 text-sm font-semibold">{t.bookingsPage.staffNotes}</h2>
               <form action={saveStaffNotes.bind(null, id)} className="space-y-2"><Textarea name="staff_notes" defaultValue={b.staff_notes ?? ""} /><SubmitButton variant="secondary" size="sm">{t.common.save}</SubmitButton></form>
-            </Card>
-          )}
-          {manual && manage && b.status !== "cancelled" && (
-            <Card className="p-4">
-              <h2 className="mb-2 text-sm font-semibold">{t.bookingsPage.statusField}</h2>
-              <div className="flex flex-wrap gap-2">
-                {(["confirmed", "completed", "no_show"] as const).filter((s) => s !== b.status).map((s) => (
-                  <form key={s} action={setBookingStatus.bind(null, id, s)}><Button type="submit" size="sm" variant="secondary">{t.bookingStatus[s]}</Button></form>
-                ))}
-              </div>
             </Card>
           )}
           {!manual && Object.keys(attr).length > 0 && (

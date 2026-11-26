@@ -25,3 +25,19 @@ export function vatSplit(grossCents: number, ratePercent: number): { net: number
   const net = Math.round(grossCents / (1 + ratePercent / 100));
   return { net, vat: grossCents - net };
 }
+
+/** Aliquota IVA predefinita (%) applicata automaticamente agli importi inseriti al netto. */
+export const DEFAULT_VAT_RATE = 22;
+
+/** IVA calcolata su un netto, in centesimi. */
+export const autoVatCents = (netCents: number, ratePercent = DEFAULT_VAT_RATE) => Math.round((netCents * ratePercent) / 100);
+
+/** Centesimi → testo per un campo ("1234,50"); stringa vuota se assente. */
+export const centsToField = (c: number | null | undefined) => (c == null ? "" : (c / 100).toFixed(2).replace(".", ","));
+
+/** Valore lordo memorizzato + quota IVA → testi per i campi netto e IVA (IVA assente = 0, mai ricalcolata da sola). */
+export function splitStored(gross: number | null | undefined, vat: number | null | undefined): { net: string; vat: string | undefined } {
+  if (gross == null) return { net: "", vat: undefined };
+  const v = vat ?? 0;
+  return { net: centsToField(gross - v), vat: centsToField(v) };
+}

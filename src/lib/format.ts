@@ -66,3 +66,14 @@ export function romeDayKey(iso: string | Date): string {
   const p = romeToday(new Date(iso));
   return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
 }
+
+/** "evento_per_clienti" → "Evento Per Clienti": toglie gli underscore e mette le maiuscole a ogni parola. */
+export function humanizeKey(value: string | null | undefined): string | null {
+  const s = (value ?? "").replace(/[_\s]+/g, " ").trim();
+  return s ? s.replace(/(^|\s)(\p{L})/gu, (_, sp: string, ch: string) => sp + ch.toUpperCase()) : null;
+}
+
+/** Titolo di una trattativa: "Azienda // Referente"; se manca uno dei due resta l'altro, altrimenti il nome salvato. */
+export function dealTitle(company: string | null | undefined, contact: string | null | undefined, fallback: string): string {
+  return [company, contact].filter(Boolean).join(" // ") || fallback;
+}

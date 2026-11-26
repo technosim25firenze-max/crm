@@ -4,7 +4,9 @@
 
 **Contatti.** `Contatti → Persone`: cerca per nome, email o telefono; filtra per tipo. `Nuovo contatto` richiede solo nome (o cognome); i campi aggiuntivi sono in "Altri dettagli". Se esiste già qualcuno con la stessa email o telefono, compare un avviso: puoi aprire il contatto esistente o creare comunque.
 
-**Scheda contatto.** Riepilogo (dati, origine, aziende, tag), Note, Documenti (file fino a 10 MB o link Drive), Consensi, Attività. `Modifica` apre tutti i campi.
+**Scheda contatto.** Un'unica pagina: dettagli (azienda, città, stato, origine), trattative, prenotazioni e una **cronologia** che unisce note (touchpoint), pagamenti e aggiornamenti; a destra tag, aziende, documenti (file fino a 10 MB o link Drive) e consensi. Origini disponibili: Modulo sito, Ricerca, Meta Ads, Referenza attribuibile a Meta, Referenza normale, Passaparola, Partnership. In `Contatti` puoi passare da **Elenco** a **Bacheca** (una colonna per stato, trascina per cambiarlo).
+
+**Schede ferme.** Una carta (trattativa o persona) diventa gialla dopo 72 ore dall'ultimo contatto e rossa dopo 7 giorni di calendario. L'ultimo contatto è l'ultima nota scritta: aggiungi una nota (anche solo "Chiamato, non risponde") per azzerare il conteggio.
 
 **Duplicati.** Nella scheda compare "Possibile duplicato" con `Unisci in questo profilo`: note, documenti, tag e aziende vengono spostati e il duplicato archiviato. Solo Titolare e Amministratore.
 
@@ -17,7 +19,7 @@
 **Ruoli.** Titolare: tutto, compresi utenti. Amministratore: CRM, import/export. Marketing: contatti e consensi. Staff: contatti, note e documenti. Solo il Titolare gestisce utenti (`Impostazioni → Utenti`).
 
 ## Vendite
-`Vendite` ha due schede: Pipeline e Attività. Ogni lead è una carta, **Individuale** (sessione singola) o **Evento** (privato o aziendale), nell'unica bacheca: Da contattare → Chiamato → Messaggio inviato → Visita prenotata → Preventivo inviato → Follow-up → Chiuso / Perso. I lead Meta entrano in «Da contattare»; le prenotazioni del sito entrano direttamente in «Chiuso». Trascina la carta nella fase successiva (su tablet usa il menu sulla carta). Per "Chiuso" si conferma il valore totale e il primo incasso con data; per "Persa" viene chiesto il motivo. Aprendo la carta trovi riepilogo, note, preventivi (link Drive o file), pagamenti e cronologia delle fasi. **"Chiuso" non significa pagato**: gli incassi si registrano in Finanze o dalla scheda della trattativa.
+`Vendite` ha due schede: Pipeline e Da fare (ricontatti e promemoria). Ci sono due bacheche identiche, **Eventi** e **Individui** (scegli in alto; ogni scheda ha il campo «Tipo», default Eventi: cambiandolo la carta passa all'altra bacheca, nella stessa fase). I lead Meta e quelli inseriti a mano partono come Eventi, le prenotazioni del sito come Individui. Le fasi: Da contattare → Chiamato → Da richiamare → Messaggio inviato → Follow-up → Trattativa in corso → Visita prenotata → Preventivo inviato → Prenotato / Non interessato. I lead Meta entrano in «Da contattare»; le prenotazioni del sito entrano direttamente in «Prenotato». Ogni riga o carta ha un menu «⋯» con modifica, eliminazione e altre azioni. Trascina la carta nella fase successiva (su tablet usa il menu sulla carta). Per "Prenotato" si conferma il valore totale e il primo incasso con data; per "Non interessato" viene chiesto il motivo. Aprendo la carta trovi in una sola pagina: dettagli (un solo **Valore**, durata in ore), preventivi (una riga per link) e la cronologia con note, pagamenti e cambi di fase. **"Prenotato" non significa pagato**: gli incassi si registrano in Finanze o dalla scheda della trattativa.
 
 ## Attività e ricontatti
 Dalla scheda di un contatto o di una trattativa usa "Ricontatto" per creare un'attività con scadenza. Quelle in ritardo compaiono in rosso e nella Panoramica.

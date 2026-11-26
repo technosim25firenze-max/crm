@@ -4,11 +4,13 @@ import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { Card, Input, PageHeader, Select, Tabs } from "@/components/ui";
-import { EditCompanyButton } from "@/components/forms";
+import { Card, Input, PageHeader, Tabs } from "@/components/ui";
+import { ContactPicker } from "@/components/contact-picker";
+import { ConfirmButton, EditCompanyButton } from "@/components/forms";
+import { ActionMenu } from "@/components/action-menu";
 import { DocumentsPanel, NotesPanel, Timeline } from "@/components/panels";
 import { SubmitButton } from "@/components/submit-button";
-import { linkContactCompany, unlinkContactCompany } from "@/lib/actions/companies";
+import { archiveCompany, linkContactCompany, unlinkContactCompany } from "@/lib/actions/companies";
 import { loadPeople, signDocuments } from "@/lib/people";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
@@ -40,10 +42,7 @@ export default async function CompanyPage({ params, searchParams }: { params: Pr
 
   let body: React.ReactNode;
   if (tab === "overview") {
-    const [linked, all] = await Promise.all([
-      supabase.from("company_contacts").select("role,contacts(id,display_name,email)").eq("company_id", id),
-      supabase.from("contacts").select("id,display_name").is("archived_at", null).order("display_name").limit(500),
-    ]);
+    const linked = await supabase.from("company_contacts").select("role,contacts(id,display_name,email)").eq("company_id", id);
     const members = (linked.data ?? []).flatMap((x) => (x.contacts ? [{ role: x.role as string | null, c: x.contacts as unknown as { id: string; display_name: string; email: string | null } }] : []));
     body = (
       <div className="grid gap-4 lg:grid-cols-3">
@@ -76,10 +75,7 @@ export default async function CompanyPage({ params, searchParams }: { params: Pr
           ) : <p className="mb-3 text-sm text-muted">{t.company.noContacts}</p>}
           <form action={linkContactCompany.bind(null, from)} className="space-y-2">
             <input type="hidden" name="company_id" value={id} />
-            <Select name="contact_id" required defaultValue="" aria-label={t.company.linkContact}>
-              <option value="" disabled>{t.company.linkContact}…</option>
-              {all.data?.map((c) => <option key={c.id} value={c.id}>{c.display_name}</option>)}
-            </Select>
+            <ContactPicker allowCreate />
             <Input name="role" placeholder={t.contacts.role} aria-label={t.contacts.role} />
             <SubmitButton variant="secondary" size="sm">{t.company.linkContact}</SubmitButton>
           </form>
@@ -100,7 +96,7 @@ export default async function CompanyPage({ params, searchParams }: { params: Pr
 
   return (
     <>
-      <PageHeader title={co.name} actions={<EditCompanyButton company={co} />} />
+      <PageHeader back={{ href: "/companies", label: t.contacts.companies }} title={co.name} actions={<><EditCompanyButton company={co} />{can(profile.role, "contacts.archive") && <ActionMenu><ConfirmButton menu label={t.common.archive} title={t.company.archiveTitle} body={t.company.archiveBody} action={archiveCompany.bind(null, id)} /></ActionMenu>}</>} />
       <Tabs items={(Object.keys(LABELS) as Tab[]).map((k) => ({ href: k === "overview" ? from : `${from}?tab=${k}`, label: LABELS[k], active: tab === k }))} />
       {body}
     </>

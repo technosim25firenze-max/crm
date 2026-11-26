@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     supabase.from("contacts").select("id", { count: "exact", head: true }).is("archived_at", null).gte("created_at", monthStart),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("is_test", false).neq("status", "cancelled").gte("starts_at", dayStart.toISOString()).lt("starts_at", dayEnd.toISOString()),
     supabase.from("bookings").select("id,customer_name,service_name,resource_name,starts_at").eq("is_test", false).neq("status", "cancelled").gte("starts_at", now.toISOString()).order("starts_at").limit(5),
-    supabase.from("opportunities").select("expected_value_cents,agreed_value_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "open").limit(5000),
+    supabase.from("opportunities").select("expected_value_cents,agreed_value_cents,vat_cents,pipeline_stages!inner(kind)").eq("pipeline_stages.kind", "open").limit(5000),
     supabase.from("tasks").select("id,title,due_date,priority").eq("assigned_to", me.id).is("done_at", null).lte("due_date", today).order("due_date").limit(6),
     supabase.from("contacts").select("id,display_name,email,kind,created_at").is("archived_at", null).order("created_at", { ascending: false }).limit(5),
     finance
@@ -36,7 +36,8 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: null }),
   ]);
   const opps = openOpps.data ?? [];
-  const oppValue = opps.reduce((a, o) => a + (o.expected_value_cents ?? 0), 0);
+  // Valore in corso IVA esclusa (la nostra parte), confrontabile con l'incassato netto.
+  const oppValue = opps.reduce((a, o) => a + Math.max(0, (o.agreed_value_cents ?? o.expected_value_cents ?? 0) - (o.vat_cents ?? 0)), 0);
   const monthPays = ((pays.data ?? []) as unknown as (PaymentRow & { id: string; contact_id: string | null; contacts: { display_name: string } | null })[]);
   // Per l'incassato del mese serve l'intero mese, non solo gli ultimi 60 movimenti.
   const monthRows = finance ? ((await supabase.from("payments").select("kind,amount_cents,vat_rate,method,paid_at").gte("paid_at", monthStart).limit(5000)).data ?? []) as PaymentRow[] : [];

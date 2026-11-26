@@ -1,13 +1,18 @@
+import { ClickRow } from "@/components/click-row";
 import Link from "@/components/nav-link";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { Badge, Button, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { TestToggle } from "@/components/test-toggle";
-import { LinkContactButton, NewBookingButton } from "@/components/booking-forms";
-import { reprocessBookingEvents } from "@/lib/actions/bookings";
+import { EditBookingButton, LinkContactButton, NewBookingButton } from "@/components/booking-forms";
+import { ActionMenu, menuItemClass } from "@/components/action-menu";
+import { ConfirmButton } from "@/components/forms";
+import { RecordPaymentButton } from "@/components/finance-forms";
+import { deleteManualBooking, reprocessBookingEvents, setBookingStatus } from "@/lib/actions/bookings";
 import { loadBookingFormData } from "@/lib/booking-data";
-import { formatDateTime, formatEuro } from "@/lib/format";
+import { formatDateTime, formatEuro, toRomeLocalInput } from "@/lib/format";
+import { splitStored } from "@/lib/money";
 import { t } from "@/lib/i18n/it";
 
 export const metadata = { title: t.bookingsPage.title };
@@ -22,16 +27,20 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   const now = new Date().toISOString();
 
   let q = supabase.from("bookings")
-    .select("id,source,is_test,contact_id,customer_name,customer_email,customer_phone,service_name,resource_name,starts_at,status,payment_status,total_cents").limit(100);
+    .select("id,source,is_test,contact_id,customer_name,customer_email,customer_phone,service_name,resource_name,starts_at,ends_at,participants,notes,staff_notes,vat_cents,status,payment_status,total_cents").limit(100);
   if (!showTests) q = q.eq("is_test", false);
   q = when === "upcoming" ? q.gte("starts_at", now).order("starts_at")
     : when === "past" ? q.lt("starts_at", now).order("starts_at", { ascending: false })
     : when === "unlinked" ? q.is("contact_id", null).order("starts_at", { ascending: false }) : q.order("starts_at", { ascending: false });
-  const [{ data: rows }, { count: unlinked }, form] = await Promise.all([
+  const finance = can(me.role, "payments.record");
+  const manage = can(me.role, "bookings.manage");
+  const [{ data: rows }, { count: unlinked }, form, { data: svc }] = await Promise.all([
     q,
     supabase.from("bookings").select("id", { count: "exact", head: true }).is("contact_id", null).eq("is_test", false),
     loadBookingFormData(supabase),
+    finance ? supabase.from("services").select("id,name,vat_rate").eq("active", true).order("name") : Promise.resolve({ data: null }),
   ]);
+  const services = (svc ?? []).map((s) => ({ ...s, vat_rate: Number(s.vat_rate) }));
 
   const admin = can(me.role, "settings.view");
   let health: { processed: number; unmapped: number; failed: number; tests: number; last: string | null; problems: { id: string; status: string; last_error: string | null; received_at: string }[] } | null = null;
@@ -60,11 +69,11 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border text-[13px] text-muted">
-                <tr>{[t.bookingsPage.when, t.bookingsPage.customer, t.bookingsPage.service, t.bookingsPage.resource, t.bookingsPage.status, t.bookingsPage.payment, t.bookingsPage.total].map((h) => <th key={h} className="px-4 py-2.5 font-medium">{h}</th>)}</tr>
+                <tr>{[t.bookingsPage.when, t.bookingsPage.customer, t.bookingsPage.service, t.bookingsPage.resource, t.bookingsPage.status, t.bookingsPage.payment, t.bookingsPage.total].map((h) => <th key={h} className="px-4 py-2.5 font-medium">{h}</th>)}<th className="w-12" /></tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((b) => (
-                  <tr key={b.id} className="hover:bg-background">
+                  <ClickRow key={b.id} href={`/bookings/${b.id}`}>
                     <td className="whitespace-nowrap px-4 py-3"><Link href={`/bookings/${b.id}`} className="font-medium hover:underline">{formatDateTime(b.starts_at)}</Link></td>
                     <td className="px-4 py-3">
                       {b.contact_id ? <Link className="font-medium hover:underline" href={`/contacts/${b.contact_id}`}>{b.customer_name}</Link> : b.is_test ? (
@@ -80,7 +89,22 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                     <td className="px-4 py-3"><Badge tone={b.status === "cancelled" || b.status === "no_show" ? "brand" : b.status === "completed" ? "success" : "neutral"}>{t.bookingStatus[b.status as keyof typeof t.bookingStatus]}</Badge></td>
                     <td className="px-4 py-3"><Badge tone={paymentTone[b.payment_status as keyof typeof paymentTone]}>{t.paymentStatus[b.payment_status as keyof typeof t.paymentStatus]}</Badge></td>
                     <td className="whitespace-nowrap px-4 py-3">{b.total_cents != null ? formatEuro(b.total_cents) : "—"}</td>
-                  </tr>
+                    <td className="px-2 py-2 text-right">
+                      {(finance || manage) && (
+                        <ActionMenu size="sm">
+                          {finance && <RecordPaymentButton menu services={services} preset={{ noVat: true, booking_id: b.id, contact: b.contact_id ? { id: b.contact_id, name: b.customer_name ?? "" } : null }} />}
+                          {manage && b.source === "manual" && (
+                            <EditBookingButton menu {...form} canPay={finance} def={{ id: b.id, service_name: b.service_name, resource_name: b.resource_name, starts_local: toRomeLocalInput(new Date(b.starts_at)),
+                              duration: b.ends_at ? Math.round((new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60000) : 60, participants: b.participants,
+                              total: splitStored(b.total_cents, b.vat_cents).net, total_vat: splitStored(b.total_cents, b.vat_cents).vat, status: b.status === "cancelled" ? "confirmed" : b.status, notes: b.notes, staff_notes: b.staff_notes }} />
+                          )}
+                          {manage && b.source === "manual" && b.status !== "cancelled" && <ConfirmButton menu label={t.bookingsPage.cancelBooking} title={t.bookingsPage.cancelBooking} body={t.bookingsPage.cancelBody} action={setBookingStatus.bind(null, b.id, "cancelled")} />}
+                          {manage && b.source === "manual" && b.status === "cancelled" && <form action={setBookingStatus.bind(null, b.id, "confirmed")}><button type="submit" className={menuItemClass}>{t.tasks.reopen}</button></form>}
+                          {b.source === "manual" && can(me.role, "contacts.archive") && <ConfirmButton menu label={t.bookingsPage.deleteBooking} title={t.bookingsPage.deleteBooking} body={t.bookingsPage.deleteBody} action={deleteManualBooking.bind(null, b.id)} />}
+                        </ActionMenu>
+                      )}
+                    </td>
+                  </ClickRow>
                 ))}
               </tbody>
             </table>

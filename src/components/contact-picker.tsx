@@ -20,17 +20,19 @@ export function ContactPicker({ name = "contact_id", initial, placeholder, sugge
   const [hits, setHits] = useState<Hit[]>([]);
   const [searched, setSearched] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [focused, setFocused] = useState(false);
   const seq = useRef(0);
 
+  // Al focus l'elenco parte subito (senza testo); poi si filtra mentre si scrive.
   useEffect(() => {
-    if (q.trim().length < 2) return;
+    if (!focused) return;
     const mine = ++seq.current;
     const h = setTimeout(async () => {
       const r = await searchContacts(q);
       if (mine === seq.current) { setHits(r); setSearched(true); }
-    }, 250);
+    }, q.trim() ? 250 : 0);
     return () => clearTimeout(h);
-  }, [q]);
+  }, [q, focused]);
 
   if (selected) {
     return (
@@ -56,15 +58,15 @@ export function ContactPicker({ name = "contact_id", initial, placeholder, sugge
       </div>
     );
   }
-  const showList = q.trim().length >= 2 && (hits.length > 0 || (searched && allowCreate));
+  const showList = focused && (hits.length > 0 || searched);
   return (
     <div className="relative">
-      <Input value={q} onChange={(e) => { setQ(e.target.value); setSearched(false); }} placeholder={placeholder ?? t.contacts.searchPicker} autoComplete="off" aria-label={t.sales.contact} />
+      <Input value={q} onChange={(e) => { setQ(e.target.value); setSearched(false); }} onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)} placeholder={placeholder ?? t.contacts.searchPicker} autoComplete="off" aria-label={t.sales.contact} />
       {showList && (
         <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-lg">
           {hits.map((h) => (
             <li key={h.id}>
-              <button type="button" onClick={() => { setSelected({ id: h.id, name: h.name }); setQ(""); setHits([]); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-background">
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setSelected({ id: h.id, name: h.name }); setQ(""); setHits([]); setFocused(false); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-background">
                 <span className="font-medium">{h.name}</span>{h.sub && <span className="block text-xs text-muted">{h.sub}</span>}
               </button>
             </li>
@@ -72,7 +74,7 @@ export function ContactPicker({ name = "contact_id", initial, placeholder, sugge
           {searched && hits.length === 0 && <li className="px-3 py-2 text-sm text-muted">{t.contacts.noResults}</li>}
           {allowCreate && (
             <li className="border-t border-border">
-              <button type="button" onClick={() => setCreating(true)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-background"><Plus size={14} />{t.contacts.createNew}</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setCreating(true)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-background"><Plus size={14} />{t.contacts.createNew}</button>
             </li>
           )}
         </ul>

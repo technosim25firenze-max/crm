@@ -11,7 +11,7 @@ import { manualPaymentStatus } from "@/lib/finance";
 import { t } from "@/lib/i18n/it";
 import { PROVIDER, processWebhookEvent } from "@/integrations/bookings/process";
 import { resolveContact } from "./contact-link";
-import { euroField, intField } from "./fields";
+import { euroField, grossCents, intField, vatRateOf } from "./fields";
 import { errorState, findDuplicates, logActivity, parseForm, type ActionState } from "./shared";
 
 /** Rielabora gli eventi non riconosciuti o falliti (dopo aver adattato il mapper). Solo owner/admin. */
@@ -32,7 +32,7 @@ const bookingSchema = z.object({
   service_name: text(200), resource_name: text(100),
   starts_at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, t.validation.date),
   duration: intField(5, 1440), participants: intField(1, 1000),
-  total: euroField, paid: euroField,
+  total: euroField, total_vat: euroField, paid: euroField, paid_vat: euroField,
   method: z.enum(["cash", "card_pos", "bank_transfer", "gift_card", "other"]).optional(),
   status: z.enum(["pending", "confirmed", "completed", "no_show"]).default("confirmed"),
   notes: text(2000), staff_notes: text(2000),
@@ -65,22 +65,23 @@ export async function createManualBooking(_: ActionState | null, fd: FormData): 
   if (!contact.id) return { fieldErrors: { contact_id: t.validation.required } };
 
   const canPay = can(me.role, "payments.record");
-  if (canPay && d.paid && d.total != null && d.paid > d.total) return { fieldErrors: { paid: t.bookingsPage.paidTooHigh } };
+  const total = grossCents(d.total, d.total_vat), paidGross = grossCents(d.paid, d.paid_vat);
+  if (canPay && paidGross && total != null && paidGross > total) return { fieldErrors: { paid: t.bookingsPage.paidTooHigh } };
   if (canPay && d.paid && !d.method) return { fieldErrors: { method: t.validation.required } };
   if (fd.get("confirm") !== "1" && (await overlaps(supabase, d.resource_name, w.start, w.end))) return { warning: t.bookingsPage.overlapWarning };
 
   const { data: c } = await supabase.from("contacts").select("display_name,email,phone").eq("id", contact.id).single();
-  const paid = canPay ? d.paid ?? 0 : 0;
+  const paid = canPay ? paidGross ?? 0 : 0;
   const { data: b, error } = await supabase.from("bookings").insert({
     source: "manual", external_id: `manual:${crypto.randomUUID()}`, contact_id: contact.id,
     customer_name: c?.display_name ?? null, customer_email: c?.email ?? null, customer_phone: c?.phone ?? null,
     service_name: d.service_name ?? null, resource_name: d.resource_name ?? null, starts_at: w.start.toISOString(), ends_at: w.end.toISOString(),
-    participants: d.participants ?? null, status: d.status, total_cents: d.total ?? null, paid_cents: paid,
-    payment_status: manualPaymentStatus(d.total ?? null, paid, 0), notes: d.notes ?? null, staff_notes: d.staff_notes ?? null,
+    participants: d.participants ?? null, status: d.status, total_cents: total ?? null, vat_cents: d.total === undefined ? null : d.total_vat ?? 0, paid_cents: paid,
+    payment_status: manualPaymentStatus(total ?? null, paid, 0), notes: d.notes ?? null, staff_notes: d.staff_notes ?? null,
   }).select("id").single();
   if (error || !b) return errorState();
   if (paid > 0) {
-    await supabase.from("payments").insert({ kind: "payment", amount_cents: paid, method: d.method, paid_at: new Date().toISOString(), contact_id: contact.id, booking_id: b.id, recorded_by: me.id, reference: "Prenotazione manuale" });
+    await supabase.from("payments").insert({ kind: "payment", amount_cents: paid, vat_rate: vatRateOf(d.paid ?? 0, d.paid_vat), method: d.method, paid_at: new Date().toISOString(), contact_id: contact.id, booking_id: b.id, recorded_by: me.id, reference: "Prenotazione manuale" });
   }
   await logActivity(supabase, { contact_id: contact.id, type: "booking", summary: "Prenotazione creata manualmente" });
   revalidatePath("/bookings"); revalidatePath("/dashboard"); revalidatePath(`/contacts/${contact.id}`); revalidatePath("/finance");
@@ -101,7 +102,7 @@ export async function updateManualBooking(id: string, _: ActionState | null, fd:
   if (!cur || cur.source !== "manual") return errorState(t.common.notAllowed);
   const { error } = await supabase.from("bookings").update({
     service_name: d.service_name ?? null, resource_name: d.resource_name ?? null, starts_at: w.start.toISOString(), ends_at: w.end.toISOString(),
-    participants: d.participants ?? null, status: d.status, total_cents: d.total ?? null, notes: d.notes ?? null, staff_notes: d.staff_notes ?? null,
+    participants: d.participants ?? null, status: d.status, total_cents: grossCents(d.total, d.total_vat) ?? null, vat_cents: d.total === undefined ? null : d.total_vat ?? 0, notes: d.notes ?? null, staff_notes: d.staff_notes ?? null,
   }).eq("id", id);
   if (error) return errorState();
   await syncManualBookingPayment(id);

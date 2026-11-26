@@ -1,5 +1,6 @@
 import * as React from "react";
 import Link from "@/components/nav-link";
+import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const btn = {
@@ -52,10 +53,15 @@ const tones = {
 export const Badge = ({ tone = "neutral", className, ...p }: React.HTMLAttributes<HTMLSpanElement> & { tone?: keyof typeof tones }) =>
   <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", tones[tone], className)} {...p} />;
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
+export function PageHeader({ title, subtitle, actions, back }: { title: string; subtitle?: string; actions?: React.ReactNode; back?: { href: string; label: string } }) {
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
+        {back && (
+          <Link href={back.href} className="mb-2 -ml-1.5 inline-flex items-center gap-0.5 rounded-control px-1.5 py-1 text-sm text-muted transition-colors hover:bg-background hover:text-foreground">
+            <ChevronLeft size={16} aria-hidden="true" />{back.label}
+          </Link>
+        )}
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">{title}</h1>
         {subtitle && <p className="mt-1.5 max-w-prose text-sm text-muted">{subtitle}</p>}
       </div>

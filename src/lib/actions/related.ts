@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { t } from "@/lib/i18n/it";
+import { romeLocalToUtc, romeToday } from "@/lib/format";
+import { dateField } from "./fields";
 import { errorState, logActivity, parseForm, type ActionState } from "./shared";
 
 type Parent = { contact_id: string } | { company_id: string } | { opportunity_id: string };
@@ -12,11 +14,19 @@ const parentKey = (p: Parent) => ("contact_id" in p ? `/contacts/${p.contact_id}
 
 // ---------------------------------------------------------------- note
 export async function addNote(parent: Parent, _: ActionState | null, fd: FormData): Promise<ActionState> {
-  const parsed = parseForm(z.object({ body: z.string().min(1, t.validation.required).max(5000, t.validation.tooLong) }), fd);
+  const parsed = parseForm(z.object({ body: z.string().min(1, t.validation.required).max(5000, t.validation.tooLong), date: dateField }), fd);
   if (parsed.fieldErrors) return { fieldErrors: parsed.fieldErrors };
   const profile = await getProfile();
   const supabase = await createClient();
-  const { error } = await supabase.from("notes").insert({ ...parent, body: parsed.data.body, author_id: profile.id });
+  // Data scelta dal team: se è oggi resta l'ora attuale, altrimenti mezzogiorno di quel giorno (ora di Roma).
+  const today = romeToday();
+  const todayIso = `${today.y}-${String(today.m).padStart(2, "0")}-${String(today.d).padStart(2, "0")}`;
+  let created_at: string | undefined;
+  if (parsed.data.date && parsed.data.date !== todayIso) {
+    if (parsed.data.date > todayIso) return { fieldErrors: { date: t.validation.date } };
+    created_at = romeLocalToUtc(`${parsed.data.date}T12:00`)?.toISOString();
+  }
+  const { error } = await supabase.from("notes").insert({ ...parent, body: parsed.data.body, author_id: profile.id, ...(created_at ? { created_at } : {}) });
   if (error) return errorState();
   await logActivity(supabase, { ...parent, type: "note", summary: "Nota aggiunta" });
   revalidatePath(parentKey(parent));
@@ -78,6 +88,23 @@ export async function deleteDocument(parent: Parent, id: string, storagePath: st
   await supabase.from("documents").delete().eq("id", id);
   if (storagePath && can(profile.role, "contacts.archive")) await supabase.storage.from("documents").remove([storagePath]);
   revalidatePath(parentKey(parent));
+}
+
+/** Aggiunge il link di un preventivo a una trattativa (una riga per link). */
+export async function addQuote(opportunityId: string, _: ActionState | null, fd: FormData): Promise<ActionState> {
+  const parsed = parseForm(z.object({
+    url: z.url({ protocol: /^https$/, message: t.validation.url }).max(1000),
+    title: z.string().max(150).optional(),
+  }), fd);
+  if (parsed.fieldErrors) return { fieldErrors: parsed.fieldErrors };
+  const profile = await getProfile();
+  const supabase = await createClient();
+  const title = parsed.data.title ?? t.quotes.title.replace(/i$/, "o");
+  const { error } = await supabase.from("documents").insert({ opportunity_id: opportunityId, title, category: "Preventivo", url: parsed.data.url, uploaded_by: profile.id });
+  if (error) return errorState();
+  await logActivity(supabase, { opportunity_id: opportunityId, type: "document", summary: `Preventivo aggiunto: ${title}` });
+  revalidatePath(`/sales/${opportunityId}`);
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------- consensi

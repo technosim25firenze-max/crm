@@ -26,13 +26,13 @@ const contactSchema = z.object({
   kind: z.enum(kinds).default("b2c"),
   lifecycle: z.enum(lifecycles).default("prospect"),
   source: z.enum(sources).default("unknown"),
-  source_detail: text(300),
+  note: text(5000),
   preferred_channel: z.enum(channels).optional(),
   sim_preferences: text(1000),
 }).refine((v) => !!(v.first_name || v.last_name), { message: t.validation.nameRequired, path: ["first_name"] });
 
 const UPDATE_KEYS = ["first_name", "last_name", "email", "phone", "city", "country", "job_title", "kind", "lifecycle",
-  "source", "source_detail", "preferred_channel", "sim_preferences"] as const;
+  "source", "preferred_channel", "sim_preferences"] as const;
 
 export async function createContact(_: ActionState | null, fd: FormData): Promise<ActionState> {
   const parsed = parseForm(contactSchema, fd);
@@ -43,9 +43,13 @@ export async function createContact(_: ActionState | null, fd: FormData): Promis
     const duplicates = await findDuplicates(supabase, parsed.data.email, parsed.data.phone);
     if (duplicates.length) return { duplicates };
   }
-  const { company_name, ...contact } = parsed.data;
+  const { company_name, note, ...contact } = parsed.data;
   const { data, error } = await supabase.from("contacts").insert(contact).select("id").single();
   if (error || !data) return errorState();
+  if (note) {
+    const me = await getProfile();
+    await supabase.from("notes").insert({ contact_id: data.id, body: note, author_id: me.id });
+  }
   if (company_name) {
     // Riusa l'azienda con lo stesso nome (senza distinguere maiuscole), altrimenti la crea.
     const pattern = company_name.replace(/[\\%_]/g, "\\$&");
@@ -117,4 +121,19 @@ export async function setDoNotContact(id: string, value: boolean) {
   await supabase.from("contacts").update({ do_not_contact: value }).eq("id", id);
   await logActivity(supabase, { contact_id: id, type: "consent", summary: value ? "Impostato: non contattare" : "Rimosso: non contattare" });
   revalidatePath(`/contacts/${id}`);
+}
+
+/** Sposta un contatto in un'altra colonna della bacheca persone (lo "stato"). */
+export async function setContactLifecycle(id: string, lifecycle: string): Promise<ActionState> {
+  if (!(lifecycles as readonly string[]).includes(lifecycle)) return errorState();
+  const supabase = await createClient();
+  const { data: before } = await supabase.from("contacts").select("lifecycle").eq("id", id).single();
+  if (!before) return errorState();
+  if (before.lifecycle === lifecycle) return { ok: true };
+  const { error } = await supabase.from("contacts").update({ lifecycle }).eq("id", id);
+  if (error) return errorState();
+  const label = (k: string) => t.lifecycle[k as keyof typeof t.lifecycle] ?? k;
+  await logActivity(supabase, { contact_id: id, type: "updated", summary: `Stato: ${label(before.lifecycle)} → ${label(lifecycle)}` });
+  revalidatePath("/contacts"); revalidatePath(`/contacts/${id}`);
+  return { ok: true };
 }

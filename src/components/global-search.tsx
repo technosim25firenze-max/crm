@@ -1,24 +1,29 @@
 "use client";
-import { Search } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { useNav } from "@/components/nav-provider";
-import { useRouter } from "next/navigation";
-import { t } from "@/lib/i18n/it";
+import { SearchCombo } from "@/components/search-combo";
+import type { SearchScope } from "@/lib/actions/search";
 
-/** Ricerca nella barra superiore: naviga lato client invece di ricaricare l'intera pagina. */
+const scopeOf = (path: string): SearchScope =>
+  path.startsWith("/companies") ? "companies" : path.startsWith("/sales") ? "sales" : path.startsWith("/bookings") ? "bookings" : "contacts";
+const listOf: Record<SearchScope, string> = { contacts: "/contacts", companies: "/companies", sales: "/sales", bookings: "/bookings" };
+
+/** Ricerca nella barra superiore: cerca tra gli elementi della pagina corrente (contatti, aziende, eventi, prenotazioni). */
 export function GlobalSearch() {
   const nav = useNav();
   const router = useRouter();
+  const scope = scopeOf(usePathname());
   return (
-    <form action="/contacts" role="search" className="relative w-full max-w-sm"
+    <form action={listOf[scope]} role="search" className="w-full max-w-sm"
       onSubmit={(e) => {
         e.preventDefault();
+        if (scope === "sales" || scope === "bookings") return; // qui si sceglie un elemento dal menu
         const q = String(new FormData(e.currentTarget).get("q") ?? "").trim();
-        const href = q ? `/contacts?${new URLSearchParams({ q })}` : "/contacts";
+        const href = q ? `${listOf[scope]}?${new URLSearchParams({ q })}` : listOf[scope];
         if (nav) nav.go(href); else router.push(href);
       }}>
-      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-      <input name="q" placeholder={t.common.searchGlobal} aria-label={t.common.search}
-        className="h-10 w-full rounded-control border border-transparent bg-background pl-9 pr-3 text-sm transition-[border-color,background-color] placeholder:text-muted/70 focus:border-border focus:bg-surface focus:outline-none" />
+      <SearchCombo key={scope} scope={scope} icon
+        inputClassName="h-10 w-full rounded-control border border-transparent bg-background pl-9 pr-3 text-sm transition-[border-color,background-color] placeholder:text-muted/70 focus:border-border focus:bg-surface focus:outline-none" />
     </form>
   );
 }

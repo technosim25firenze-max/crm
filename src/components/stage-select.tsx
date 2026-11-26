@@ -6,8 +6,8 @@ import { moveOpportunity } from "@/lib/actions/sales";
 import { t } from "@/lib/i18n/it";
 
 /** Cambio fase dalla scheda: per "persa" chiede il motivo. */
-export function StageSelect({ id, name, stages, current, totalCents, canPay }: { id: string; name: string; stages: { id: string; name: string; kind: string }[]; current: string; totalCents: number | null; canPay: boolean }) {
-  const [closing, setClosing] = useState<{ id: string; stageId: string; name: string; totalCents: number | null; canPay: boolean } | null>(null);
+export function StageSelect({ id, name, stages, current, totalCents, canPay, individual = false }: { individual?: boolean; id: string; name: string; stages: { id: string; name: string; kind: string }[]; current: string; totalCents: number | null; canPay: boolean }) {
+  const [closing, setClosing] = useState<{ id: string; stageId: string; name: string; totalCents: number | null; individual?: boolean; canPay: boolean } | null>(null);
   const [pendingLost, setPendingLost] = useState<string | null>(null);
   const [reason, setReason] = useState<string>(t.sales.lostReasons[0]);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export function StageSelect({ id, name, stages, current, totalCents, canPay }: {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={current} disabled={busy} aria-label={t.sales.stage} className="w-60"
-        onChange={(e) => { const s = stages.find((x) => x.id === e.target.value); if (s?.kind === "lost") setPendingLost(s.id); else if (s?.kind === "won") setClosing({ id, stageId: s.id, name, totalCents, canPay }); else run(e.target.value); }}>
+        onChange={(e) => { const s = stages.find((x) => x.id === e.target.value); if (s?.kind === "lost") setPendingLost(s.id); else if (s?.kind === "won" && totalCents == null) setClosing({ id, stageId: s.id, name, totalCents, individual, canPay }); else run(e.target.value); }}>
         {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </Select>
       {pendingLost && (

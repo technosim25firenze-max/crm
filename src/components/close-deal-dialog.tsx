@@ -3,17 +3,18 @@ import { useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { Button, Field, Input, Select } from "@/components/ui";
+import { MoneyVat } from "@/components/money-vat";
+import { DEFAULT_VAT_RATE, splitStored } from "@/lib/money";
 import { closeOpportunity } from "@/lib/actions/sales";
 import { t } from "@/lib/i18n/it";
 
-const euro = (c: number | null | undefined) => (c == null ? "" : (c / 100).toFixed(2).replace(".", ","));
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
 /** Chiusura di una scheda come vinta: valore totale + primo incasso (importo e data). */
 export function CloseDealDialog({ target, onClose, onDone }: {
-  target: { id: string; stageId: string; name: string; totalCents: number | null; canPay: boolean } | null;
+  target: { id: string; stageId: string; name: string; totalCents: number | null; vatCents?: number | null; individual?: boolean; canPay: boolean } | null;
   onClose: () => void;
-  onDone: (r: { id: string; stageId: string; totalCents: number; collectedCents: number }) => void;
+  onDone: (r: { id: string; stageId: string; totalCents: number; vatCents: number; collectedCents: number }) => void;
 }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export function CloseDealDialog({ target, onClose, onDone }: {
     if (!target) return;
     start(async () => {
       const r = await closeOpportunity(target.id, target.stageId, fd);
-      if (r.ok) { setErrors({}); setError(null); onDone({ id: target.id, stageId: target.stageId, totalCents: r.totalCents ?? 0, collectedCents: r.collectedCents ?? 0 }); return; }
+      if (r.ok) { setErrors({}); setError(null); onDone({ id: target.id, stageId: target.stageId, totalCents: r.totalCents ?? 0, vatCents: r.vatCents ?? 0, collectedCents: r.collectedCents ?? 0 }); return; }
       setErrors(r.fieldErrors ?? {}); setError(r.error ?? null);
     });
   }
@@ -42,10 +43,10 @@ export function CloseDealDialog({ target, onClose, onDone }: {
           </div>
           {target && (
             <form action={submit} key={target.id} className="space-y-4">
-              <Field label={t.sales.closeTotal} error={errors.total}><Input name="total" inputMode="decimal" placeholder="0,00" defaultValue={euro(target.totalCents)} autoFocus required /></Field>
+              <MoneyVat rate={target.individual ? 0 : DEFAULT_VAT_RATE} name="total" label={t.sales.closeTotal.replace(" (€)", "")} net={splitStored(target.totalCents, target.vatCents).net} vat={splitStored(target.totalCents, target.vatCents).vat} error={errors.total} required autoFocus />
               {target.canPay && (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={t.sales.closeCollected} error={errors.collected}><Input name="collected" inputMode="decimal" placeholder="0,00" /></Field>
+                  <MoneyVat rate={target.individual ? 0 : DEFAULT_VAT_RATE} className="sm:col-span-2" name="collected" label={t.sales.closeCollected.replace(" (€)", "")} error={errors.collected} />
                   <Field label={t.sales.closePaidOn} error={errors.paid_on}><Input name="paid_on" type="date" defaultValue={today()} /></Field>
                   <Field label={t.sales.closeMethod} className="sm:col-span-2">
                     <Select name="method" defaultValue="bank_transfer">

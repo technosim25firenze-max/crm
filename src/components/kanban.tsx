@@ -5,21 +5,25 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Badge, Button } from "@/components/ui";
 import { CloseDealDialog } from "@/components/close-deal-dialog";
 import { moveOpportunity } from "@/lib/actions/sales";
-import { formatDate, formatEuro } from "@/lib/format";
+import { formatEuro } from "@/lib/format";
+import { STALE_CARD, type Staleness } from "@/lib/staleness";
 import { t } from "@/lib/i18n/it";
 
 export interface KStage { id: string; name: string; kind: "open" | "won" | "lost" }
 export interface KItem {
-  id: string; name: string; stage_id: string; kind: "individual" | "event"; value_cents: number | null;
-  collected_cents: number | null; who: string | null; close: string | null; overdue: boolean;
+  id: string; name: string; menu?: React.ReactNode; stage_id: string; value_cents: number | null; vat_cents: number | null;
+  collected_cents: number | null; event: string | null; stale: Staleness; overdue: boolean;
 }
 
 /** Bacheca unica: una colonna per fase. "Chiuso" chiede valore e primo incasso, "Perso" il motivo. */
-export function Kanban({ stages, initial, canPay }: { stages: KStage[]; initial: KItem[]; canPay: boolean }) {
+export function Kanban({ stages, initial, canPay, individual = false }: { stages: KStage[]; initial: KItem[]; canPay: boolean; individual?: boolean }) {
   const [items, setItems] = useState(initial);
+  // Dopo una creazione/modifica la pagina porta nuovi dati dal server: la bacheca li mostra subito senza ricaricare.
+  const [seen, setSeen] = useState(initial);
+  if (initial !== seen) { setSeen(initial); setItems(initial); }
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<{ id: string; stage: string } | null>(null);
-  const [closing, setClosing] = useState<{ id: string; stageId: string; name: string; totalCents: number | null; canPay: boolean } | null>(null);
+  const [closing, setClosing] = useState<{ id: string; stageId: string; name: string; totalCents: number | null; vatCents?: number | null; individual?: boolean; canPay: boolean } | null>(null);
   const [reason, setReason] = useState<string>(t.sales.lostReasons[0]);
   const [, start] = useTransition();
   const [over, setOver] = useState<string | null>(null);
@@ -38,7 +42,8 @@ export function Kanban({ stages, initial, canPay }: { stages: KStage[]; initial:
     if (!item || item.stage_id === stageId) return;
     const stage = stages.find((s) => s.id === stageId);
     if (stage?.kind === "lost") { setReason(t.sales.lostReasons[0]); setLost({ id, stage: stageId }); return; }
-    if (stage?.kind === "won") { setClosing({ id, stageId, name: item.name, totalCents: item.value_cents, canPay }); return; }
+    // Con un valore già indicato si prenota subito (il valore resta); il popup si apre solo cliccando sui dati di pagamento della carta.
+    if (stage?.kind === "won" && item.value_cents == null) { setClosing({ id, stageId, name: item.name, totalCents: item.value_cents, vatCents: item.vat_cents, individual, canPay }); return; }
     move(id, stageId);
   }
 
@@ -48,7 +53,7 @@ export function Kanban({ stages, initial, canPay }: { stages: KStage[]; initial:
       <div className="flex gap-3 overflow-x-auto pb-3">
         {stages.map((s) => {
           const col = items.filter((i) => i.stage_id === s.id);
-          const total = col.reduce((a, i) => a + (i.value_cents ?? 0), 0);
+          const total = col.reduce((a, i) => a + Math.max(0, (i.value_cents ?? 0) - (i.vat_cents ?? 0)), 0); // IVA esclusa
           return (
             <section key={s.id} aria-label={s.name}
               onDragOver={(e) => { e.preventDefault(); setOver(s.id); }} onDragLeave={() => setOver(null)}
@@ -64,20 +69,29 @@ export function Kanban({ stages, initial, canPay }: { stages: KStage[]; initial:
               <div className="min-h-12 space-y-2">
                 {col.map((i) => (
                   <article key={i.id} draggable onDragStart={(e) => e.dataTransfer.setData("text/plain", i.id)}
-                    className="cursor-grab rounded-lg border border-border bg-surface p-3 text-sm shadow-sm active:cursor-grabbing">
-                    <Link href={`/sales/${i.id}`} className="font-medium leading-snug hover:underline">{i.name}</Link>
-                    {i.who && <p className="mt-0.5 truncate text-xs text-muted">{i.who}</p>}
+                    className={`cursor-grab rounded-lg border p-3 text-sm shadow-sm active:cursor-grabbing ${i.stale ? STALE_CARD[i.stale] : "border-border bg-surface"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/sales/${i.id}`} className="font-medium leading-snug hover:underline">{i.name}</Link>
+                      {i.menu}
+                    </div>
+                    {i.event && <p className="mt-0.5 truncate text-xs text-muted">{i.event}</p>}
                     <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted">
-                      <Badge>{t.sales.kinds[i.kind]}</Badge>
                       <span className="flex items-center gap-1.5">
                         {i.overdue && <Badge tone="brand">{t.tasks.overdue}</Badge>}
-                        {i.close && formatDate(i.close)}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-muted">
-                      {i.value_cents != null ? formatEuro(i.value_cents) : t.sales.cardNoValue}
-                      {i.collected_cents != null && i.value_cents != null && i.value_cents > 0 && <> · <span className={i.collected_cents >= i.value_cents ? "text-success" : ""}>{formatEuro(i.collected_cents)} {t.sales.paid}</span></>}
-                    </p>
+                    {(() => {
+                      const line = (
+                        <>
+                          {i.value_cents != null ? formatEuro(i.value_cents) : t.sales.cardNoValue}
+                          {i.collected_cents != null && i.value_cents != null && i.value_cents > 0 && <> · <span className={i.collected_cents >= i.value_cents ? "text-success" : ""}>{formatEuro(i.collected_cents)} {t.sales.paid}</span></>}
+                        </>
+                      );
+                      return s.kind === "won" ? (
+                        <button type="button" onClick={() => setClosing({ id: i.id, stageId: s.id, name: i.name, totalCents: i.value_cents, vatCents: i.vat_cents, individual, canPay })}
+                          className="-mx-1.5 mt-1.5 block rounded-md px-1.5 py-1 text-left text-xs text-muted underline-offset-2 hover:bg-background hover:text-foreground hover:underline">{line}</button>
+                      ) : <p className="mt-2 text-xs text-muted">{line}</p>;
+                    })()}
                     {/* Su tablet il trascinamento non è disponibile: selettore alternativo */}
                     <select aria-label={t.sales.move} value={i.stage_id} onChange={(e) => requestMove(i.id, e.target.value)}
                       className="mt-2 hidden h-8 w-full rounded-md border border-border bg-surface text-xs [@media(pointer:coarse)]:block">
@@ -93,7 +107,7 @@ export function Kanban({ stages, initial, canPay }: { stages: KStage[]; initial:
 
       <CloseDealDialog target={closing} onClose={() => setClosing(null)}
         onDone={(r) => {
-          setItems((cur) => cur.map((i) => (i.id === r.id ? { ...i, stage_id: r.stageId, value_cents: r.totalCents, collected_cents: canPay ? (i.collected_cents ?? 0) + r.collectedCents : null } : i)));
+          setItems((cur) => cur.map((i) => (i.id === r.id ? { ...i, stage_id: r.stageId, value_cents: r.totalCents, vat_cents: r.vatCents, collected_cents: canPay ? (i.collected_cents ?? 0) + r.collectedCents : null } : i)));
           setClosing(null);
         }} />
 
