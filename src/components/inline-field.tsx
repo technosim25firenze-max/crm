@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { updateOpportunityField, type OppField } from "@/lib/actions/sales";
 import { t } from "@/lib/i18n/it";
 
@@ -14,6 +14,8 @@ export function InlineField({ id, field, label, display, value, type = "text", o
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // Per i menu: il valore scelto si vede subito, finché non arrivano i dati aggiornati dal server.
+  const [optimistic, setOptimistic] = useOptimistic<string | null>(null);
   const done = useRef(false);
   const [creating, setCreating] = useState(false);
 
@@ -22,9 +24,14 @@ export function InlineField({ id, field, label, display, value, type = "text", o
     if (done.current) return;
     done.current = true;
     if (next.trim() === value.trim()) { setEditing(false); return; }
+    const chosen = type === "select" || type === "combo" ? (options?.find((o) => o.value === next)?.label ?? (next.trim() || "—")) : null;
+    if (chosen !== null) setEditing(false);
     start(async () => {
+      if (chosen !== null) setOptimistic(chosen);
       const r = await updateOpportunityField(id, field, next);
-      if (r.error) { setError(r.error); done.current = false; } else setEditing(false);
+      if (r.error) { setError(r.error); done.current = false; setEditing(true); }
+      // Gli altri campi si chiudono insieme ai dati nuovi (di nuovo in transizione dopo l'await): niente ritorno al valore vecchio.
+      else start(() => setEditing(false));
     });
   }
   const cls = "h-8 w-full max-w-64 rounded-control border border-border bg-surface px-2 text-right text-sm focus:border-foreground/30 focus:outline-none focus:ring-4 focus:ring-foreground/5";
@@ -57,8 +64,8 @@ export function InlineField({ id, field, label, display, value, type = "text", o
             {error && <span role="alert" className="mt-1 block text-xs font-normal text-brand">{error}</span>}
           </>
         ) : (
-          <button type="button" onClick={open} title={t.common.edit}
-            className="-mr-2 rounded-control px-2 py-1 text-right transition-colors hover:bg-background">{display || <span className="text-muted">—</span>}</button>
+          <button type="button" onClick={open} disabled={pending} title={t.common.edit}
+            className="-mr-2 rounded-control px-2 py-1 text-right transition-colors hover:bg-background">{optimistic ?? (display || <span className="text-muted">—</span>)}</button>
         )}
       </dd>
     </div>

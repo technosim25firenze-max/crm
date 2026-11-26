@@ -4,6 +4,7 @@ import Link from "@/components/nav-link";
 import { Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { t } from "@/lib/i18n/it";
+import { normalizeSource, SOURCE_CHOICES } from "@/lib/sources";
 import type { ActionState } from "@/lib/actions/shared";
 import type { Company, Contact } from "@/lib/types";
 
@@ -34,12 +35,8 @@ export function ContactForm({ action, contact, onDone }: { action: Action; conta
           </Select>
         </Field>
         <Field label={t.contacts.source}>
-          <Select name="source" defaultValue={contact?.source ?? "unknown"}>
-            <option value="unknown">{t.sources.unknown}</option>
-            {t.sourceOptions.map((k) => <option key={k} value={k}>{t.sources[k]}</option>)}
-            {/* Origine storica non più in elenco: resta selezionata per non perderla in modifica. */}
-            {contact && contact.source !== "unknown" && !(t.sourceOptions as readonly string[]).includes(contact.source) &&
-              <option value={contact.source}>{t.sources[contact.source as keyof typeof t.sources] ?? contact.source}</option>}
+          <Select name="source" defaultValue={normalizeSource(contact?.source)}>
+            {SOURCE_CHOICES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </Select>
         </Field>
         <Field label={t.contacts.city} error={err.city}><Input name="city" defaultValue={v("city")} /></Field>

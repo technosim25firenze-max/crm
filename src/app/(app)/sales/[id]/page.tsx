@@ -18,6 +18,7 @@ import { NewTaskButton } from "@/components/tasks";
 import { TaskList, type TaskItem } from "@/components/task-list";
 import { RecordPaymentButton } from "@/components/finance-forms";
 import { deleteOpportunity, duplicateOpportunity } from "@/lib/actions/sales";
+import { normalizeSource, SOURCE_CHOICES, sourceLabel } from "@/lib/sources";
 import { loadPeople } from "@/lib/people";
 import { buildThread } from "@/lib/thread";
 import { staleness } from "@/lib/staleness";
@@ -67,8 +68,6 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   const collected = finance ? opportunityCollectedCents(pays, booking) : 0;
   const td = romeToday(); const todayIso = `${td.y}-${String(td.m).padStart(2, "0")}-${String(td.d).padStart(2, "0")}`;
   const hoursVal = o.duration_minutes ? String(o.duration_minutes / 60).replace(".", ",") : "";
-  const sourceKeys: string[] = [...t.sourceOptions]; if (o.source !== "unknown" && !sourceKeys.includes(o.source)) sourceKeys.push(o.source);
-  const sourceKey: string = o.source;
   const thread = buildThread({ notes: [], payments: pays, activities: (actsRes.data ?? []) as Activity[] });
   const stale = stage.kind === "open" ? staleness(o.last_contact_at) : null;
 
@@ -78,7 +77,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
         actions={<>
           <EditOpportunityButton companies={companiesRes.data ?? []}
             def={{ id, name: o.name, kind: o.kind as OppKind, contact: contact ? { id: contact.id, name: contact.display_name } : null, company_id: o.company_id, value_cents: value, vat_cents: o.vat_cents,
-              attendees: o.attendees, event_date: o.event_date, event_type: o.event_type }} />
+              attendees: o.attendees, event_date: o.event_date, event_type: o.event_type, source: o.source }} />
           <ActionMenu><form action={duplicateOpportunity.bind(null, id)}><button type="submit" className={menuItemClass}>{t.sales.duplicate}</button></form>{canModerate && <ConfirmButton menu label={t.common.delete} title={t.sales.deleteTitle} body={t.sales.deleteBody} action={deleteOpportunity.bind(null, id)} />}</ActionMenu>
         </>} />
       <div className="-mt-3 mb-6 flex flex-wrap items-center gap-3 text-sm text-muted">
@@ -101,9 +100,8 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
               <InlineField id={id} field="event_type" label={t.sales.eventType} type="combo" options={eventTypes.map((v) => ({ value: v, label: humanizeKey(v) ?? v }))} value={o.event_type ?? ""} display={humanizeKey(o.event_type)} />
               <InlineField id={id} field="event_date" label={t.sales.eventDate} type="date" value={o.event_date ?? ""} display={o.event_date ? formatDate(o.event_date) : null} />
               <InlineField id={id} field="attendees" label={t.sales.attendees} inputMode="numeric" value={o.attendees != null ? String(o.attendees) : ""} display={o.attendees} />
-              <InlineField id={id} field="source" label={t.sales.sourceLabel} type="select" value={sourceKey}
-                options={[{ value: "unknown", label: t.sources.unknown }, ...sourceKeys.map((k) => ({ value: k, label: t.sources[k as keyof typeof t.sources] ?? k }))]}
-                display={t.sources[o.source as keyof typeof t.sources] ?? o.source} />
+              <InlineField id={id} field="source" label={t.sales.sourceLabel} type="select" value={normalizeSource(o.source)}
+                options={SOURCE_CHOICES} display={sourceLabel(o.source)} />
               <InlineField id={id} field="duration" label={t.detail.duration} inputMode="decimal" placeholder="2,5" value={hoursVal} display={hoursVal ? `${hoursVal} ${t.detail.hours}` : null} />
               <Row label={t.sales.created}>{formatDate(o.created_at)}</Row>
               {o.lost_reason && <Row label={t.sales.lostReason}>{o.lost_reason}</Row>}

@@ -12,6 +12,7 @@ import { AD_SOURCES, bookingStats, marketingKpis, returningCustomers } from "@/l
 import { growthPercent, summarizePayments, type PaymentRow } from "@/lib/finance";
 import { formatDate, formatEuro, formatNumber, romeMonthKey } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
+import { normalizeSource, sourceLabel } from "@/lib/sources";
 
 export const metadata = { title: t.analytics.title };
 type Search = { tab?: string; range?: string; from?: string; to?: string };
@@ -84,7 +85,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     const pays = (payRes.data ?? null) as unknown as { contact_id: string | null; kind: string; amount_cents: number; vat_rate: number; contacts: { display_name: string } | null }[] | null;
     const rep = returningCustomers((bks ?? []) as { contact_id: string | null; status: string }[], pays);
     const perMonth = new Map<string, number>(), perSource = new Map<string, number>();
-    (contacts ?? []).forEach((c) => { const k = romeMonthKey(c.created_at); perMonth.set(k, (perMonth.get(k) ?? 0) + 1); perSource.set(c.source, (perSource.get(c.source) ?? 0) + 1); });
+    (contacts ?? []).forEach((c) => { const k = romeMonthKey(c.created_at); perMonth.set(k, (perMonth.get(k) ?? 0) + 1); const s = normalizeSource(c.source); perSource.set(s, (perSource.get(s) ?? 0) + 1); });
     const top = new Map<string, { name: string; net: number; id: string }>();
     pays?.forEach((p) => { if (!p.contact_id) return; const cur = top.get(p.contact_id) ?? { name: p.contacts?.display_name ?? "—", net: 0, id: p.contact_id }; cur.net += (p.kind === "refund" ? -1 : 1) * Math.round(p.amount_cents / (1 + p.vat_rate / 100)); top.set(p.contact_id, cur); });
     const topList = [...top.values()].sort((a, b) => b.net - a.net).slice(0, 10).filter((x) => x.net > 0);
@@ -99,7 +100,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           {perMonth.size ? <BarsChart data={[...perMonth.entries()].sort().map(([k, v]) => ({ label: monthLabel(k), value: v }))} /> : <EmptyState title={t.analytics.noData} />}</Card>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card><h2 className="border-b border-border px-4 py-3 text-sm font-semibold">{t.analytics.bySource}</h2>
-            {perSource.size ? <ul className="divide-y divide-border">{[...perSource.entries()].sort((a, b) => b[1] - a[1]).map(([s, n]) => <li key={s} className="flex justify-between px-4 py-2.5 text-sm"><span>{t.sources[s as keyof typeof t.sources] ?? s}</span><span className="font-medium">{n}</span></li>)}</ul> : <EmptyState title={t.analytics.noData} />}</Card>
+            {perSource.size ? <ul className="divide-y divide-border">{[...perSource.entries()].sort((a, b) => b[1] - a[1]).map(([s, n]) => <li key={s} className="flex justify-between px-4 py-2.5 text-sm"><span>{sourceLabel(s)}</span><span className="font-medium">{n}</span></li>)}</ul> : <EmptyState title={t.analytics.noData} />}</Card>
           {finance && <Card><h2 className="border-b border-border px-4 py-3 text-sm font-semibold">{t.analytics.topCustomers}</h2>
             {topList.length ? <ul className="divide-y divide-border">{topList.map((c) => <li key={c.id} className="flex justify-between px-4 py-2.5 text-sm"><Link href={`/contacts/${c.id}`} className="font-medium hover:underline">{c.name}</Link><span>{formatEuro(c.net)}</span></li>)}</ul> : <EmptyState title={t.analytics.noData} />}</Card>}
         </div>
@@ -165,7 +166,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           </ul></Card>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card><h2 className="border-b border-border px-4 py-3 text-sm font-semibold">{t.analytics.revenueBySource}</h2>
-            {revRows.length ? <ul className="divide-y divide-border">{revRows.map((r) => <li key={r.source} className="flex justify-between px-4 py-2.5 text-sm"><span>{t.sources[r.source as keyof typeof t.sources] ?? r.source}<span className="ml-2 text-xs text-muted">{r.customers} {t.analytics.customersCount.toLowerCase()}</span></span><span className="font-medium">{formatEuro(Number(r.collected_net_cents))}</span></li>)}</ul> : <EmptyState title={t.analytics.noData} />}</Card>
+            {revRows.length ? <ul className="divide-y divide-border">{revRows.map((r) => <li key={r.source} className="flex justify-between px-4 py-2.5 text-sm"><span>{sourceLabel(r.source)}<span className="ml-2 text-xs text-muted">{r.customers} {t.analytics.customersCount.toLowerCase()}</span></span><span className="font-medium">{formatEuro(Number(r.collected_net_cents))}</span></li>)}</ul> : <EmptyState title={t.analytics.noData} />}</Card>
           <Card><h2 className="border-b border-border px-4 py-3 text-sm font-semibold">{t.analytics.spendList}</h2>
             {spend?.length ? <ul className="divide-y divide-border">{spend.map((x) => (
               <li key={x.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">

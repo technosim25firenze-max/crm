@@ -68,13 +68,13 @@ export const it = {
   kinds: { b2c: "Privato", b2b: "Referente evento", partner: "Partnership", supplier: "Fornitore" },
   lifecycle: { prospect: "Potenziale", active: "Cliente attivo", returning: "Cliente ricorrente", inactive: "Inattivo" },
   sources: {
-    unknown: "Sconosciuta", website_form: "Modulo sito", search: "Ricerca", meta_ads: "Meta Ads", referral_meta: "Referenza attribuibile a Meta",
-    referral: "Referenza normale", word_of_mouth: "Passaparola", partnership: "Partnership",
-    // Valori storici: restano leggibili sui contatti esistenti ma non si offrono più nel form.
-    landing_page: "Landing page", meta_lead_ads: "Meta Lead Ads", google_ads: "Google Ads", google_organic: "Google (organico)", direct: "Accesso diretto",
-    instagram_organic: "Instagram (organico)", facebook_organic: "Facebook (organico)", walk_in: "Di passaggio", phone: "Telefono", partner: "Partner", other: "Altro",
+    unknown: "Sconosciuta", website_form: "Modulo sito", search: "Ricerca", meta_ads: "Meta Ads", google_ads: "Google Ads", google_organic: "Google (organico)",
+    instagram_organic: "Instagram (organico)", facebook_organic: "Facebook (organico)", direct: "Accesso diretto", referral_meta: "Referenza attribuibile a Meta",
+    referral: "Referenza normale", word_of_mouth: "Passaparola", partnership: "Partnership", other: "Altro",
   },
-  sourceOptions: ["website_form", "search", "meta_ads", "referral_meta", "referral", "word_of_mouth", "partnership"] as const,
+  // Unico elenco di origini: lo stesso in ogni menu, per contatti e trattative (vedi lib/sources.ts).
+  sourceOptions: ["unknown", "website_form", "search", "meta_ads", "google_ads", "google_organic", "instagram_organic", "facebook_organic", "direct",
+    "referral_meta", "referral", "word_of_mouth", "partnership", "other"] as const,
   thread: {
     title: "Cronologia", empty: "Ancora nessun aggiornamento.", notePlaceholder: "Scrivi una nota o un touchpoint (chiamata, messaggio, visita…)",
     add: "Aggiungi", payment: "Pagamento", refund: "Rimborso", by: "di",

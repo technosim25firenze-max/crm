@@ -11,11 +11,12 @@ import { createOpportunity, listEventTypes, listStages, updateOpportunity } from
 import { t } from "@/lib/i18n/it";
 import { humanizeKey } from "@/lib/format";
 import { parseKind, type OppKind } from "@/lib/pipelines";
+import { normalizeSource, SOURCE_CHOICES } from "@/lib/sources";
 import type { ActionState } from "@/lib/actions/shared";
 
 export interface OppDefaults {
   id: string; name: string; kind: OppKind; contact?: { id: string; name: string } | null; company_id: string | null;
-  value_cents: number | null; vat_cents?: number | null; attendees: number | null; event_date: string | null; event_type: string | null;
+  value_cents: number | null; vat_cents?: number | null; attendees: number | null; event_date: string | null; event_type: string | null; source: string;
 }
 
 const NEW = "__new__";
@@ -82,6 +83,11 @@ function Form({ action, companies, def, preset, onDone, defaultKind = "event" }:
         <EventTypeField initial={def?.event_type} error={e.event_type} />
         <Field label={t.sales.attendees} error={e.attendees}><Input name="attendees" inputMode="numeric" defaultValue={def?.attendees ?? ""} /></Field>
         <Field label={t.sales.eventDate} error={e.event_date}><Input name="event_date" type="date" defaultValue={def?.event_date ?? ""} /></Field>
+        {def && (
+          <Field label={t.sales.sourceLabel} error={e.source}>
+            <Select name="source" defaultValue={normalizeSource(def.source)}>{SOURCE_CHOICES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</Select>
+          </Field>
+        )}
       </div>
       {state?.error && <p role="alert" className="text-sm text-brand">{state.error}</p>}
       <div className="flex justify-end"><SubmitButton>{t.common.save}</SubmitButton></div>

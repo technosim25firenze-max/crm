@@ -24,6 +24,7 @@ import { findDuplicates } from "@/lib/actions/shared";
 import { loadPeople, signDocuments } from "@/lib/people";
 import { dealTitle, formatDate, formatDateTime, formatEuro } from "@/lib/format";
 import { t } from "@/lib/i18n/it";
+import { sourceLabel } from "@/lib/sources";
 import type { Activity, Consent, Contact, Doc, Note } from "@/lib/types";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -124,7 +125,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
               )) : null}</Row>
               <Row label={t.contacts.city}>{[c.city, c.country].filter(Boolean).join(", ")}</Row>
               <Row label={t.contacts.lifecycle}>{t.lifecycle[c.lifecycle as keyof typeof t.lifecycle]}</Row>
-              <Row label={t.contacts.source}>{t.sources[c.source as keyof typeof t.sources]}</Row>
+              <Row label={t.contacts.source}>{sourceLabel(c.source)}</Row>
               <Row label={t.contacts.preferredChannel}>{c.preferred_channel ? t.channels[c.preferred_channel as keyof typeof t.channels] : null}</Row>
               <Row label={t.contacts.simPreferences}>{c.sim_preferences}</Row>
               <Row label={t.contacts.created}>{formatDate(c.created_at)}</Row>

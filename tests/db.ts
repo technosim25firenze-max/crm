@@ -12,7 +12,7 @@ export async function createDb() {
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     create role authenticated;
   `);
-  for (const f of ["20261118000001_foundation_crm.sql", "20261120000003_bookings_webhook.sql", "20261121000004_sales_finance_marketing.sql", "20261123000005_booking_platform_manual.sql", "20261124000006_booking_test_flag.sql", "20261125000007_contact_options.sql", "20261125000008_meta_leads.sql", "20261125000009_lead_stage.sql", "20261125000010_stripe_fee.sql", "20261125000011_contact_kind_partner.sql", "20261126000012_unified_pipeline.sql", "20261126000013_last_contact_sources.sql", "20261127000014_event_pipeline_stages.sql", "20261127000015_opportunity_duration.sql", "20261127000016_stage_invia_preventivo.sql", "20261128000017_individuals_pipeline.sql", "20261128000018_vat_cents.sql"]) {
+  for (const f of ["20261118000001_foundation_crm.sql", "20261120000003_bookings_webhook.sql", "20261121000004_sales_finance_marketing.sql", "20261123000005_booking_platform_manual.sql", "20261124000006_booking_test_flag.sql", "20261125000007_contact_options.sql", "20261125000008_meta_leads.sql", "20261125000009_lead_stage.sql", "20261125000010_stripe_fee.sql", "20261125000011_contact_kind_partner.sql", "20261126000012_unified_pipeline.sql", "20261126000013_last_contact_sources.sql", "20261127000014_event_pipeline_stages.sql", "20261127000015_opportunity_duration.sql", "20261127000016_stage_invia_preventivo.sql", "20261128000017_individuals_pipeline.sql", "20261128000018_vat_cents.sql", "20261129000019_unified_sources.sql"]) {
     await db.exec(readFileSync(join(process.cwd(), "supabase/migrations", f), "utf8"));
   }
   return db;

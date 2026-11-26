@@ -68,7 +68,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const [{ data: stages }, { data: opps }, { data: companies }, { data: overdueTasks }, { data: pays }] = await Promise.all([
     supabase.from("pipeline_stages").select("id,name,kind,position").eq("pipeline_id", pipe?.id ?? "").order("position"),
     (() => {
-      return supabase.from("opportunities").select("id,name,kind,event_type,attendees,event_date,company_id,contact_id,last_contact_at,stage_id,expected_value_cents,agreed_value_cents,vat_cents,expected_close_date,owner_id,contacts(display_name),companies(name),bookings(source,paid_cents)")
+      return supabase.from("opportunities").select("id,name,kind,event_type,attendees,event_date,company_id,contact_id,last_contact_at,stage_id,expected_value_cents,agreed_value_cents,vat_cents,expected_close_date,owner_id,source,contacts(display_name),companies(name),bookings(source,paid_cents)")
         .eq("pipeline_id", pipe?.id ?? "").order("created_at", { ascending: false }).limit(500);
     })(),
     supabase.from("companies").select("id,name").is("archived_at", null).order("name").limit(500),
@@ -88,7 +88,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
       <ActionMenu size={size ?? "sm"}>
         <EditOpportunityButton menu companies={companies ?? []}
           def={{ id: o.id, name: o.name, kind: o.kind as OppKind, contact: o.contact_id && c ? { id: o.contact_id, name: c.display_name } : null, company_id: o.company_id,
-            value_cents: o.agreed_value_cents ?? o.expected_value_cents, vat_cents: o.vat_cents, attendees: o.attendees, event_date: o.event_date, event_type: o.event_type }} />
+            value_cents: o.agreed_value_cents ?? o.expected_value_cents, vat_cents: o.vat_cents, attendees: o.attendees, event_date: o.event_date, event_type: o.event_type, source: o.source }} />
         <form action={duplicateOpportunity.bind(null, o.id)}><button type="submit" className={menuItemClass}>{t.sales.duplicate}</button></form>
         {canDelete && !bk && <ConfirmButton menu label={t.common.delete} title={t.sales.deleteTitle} body={t.sales.deleteBody} action={deleteOpportunity.bind(null, o.id)} />}
       </ActionMenu>

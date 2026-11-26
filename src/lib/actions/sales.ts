@@ -14,6 +14,7 @@ import { autoVatCents, DEFAULT_VAT_RATE } from "@/lib/money";
 import { resolveContact } from "./contact-link";
 import { resolveCompany } from "./company-link";
 import { PIPELINE_KIND, parseKind, type OppKind } from "@/lib/pipelines";
+import { normalizeSource } from "@/lib/sources";
 import { errorState, logActivity, parseForm, type ActionState } from "./shared";
 
 const text = (n = 200) => z.string().max(n, t.validation.tooLong).optional();
@@ -25,6 +26,7 @@ const oppSchema = z.object({
   contact_id: uuid, company_id: uuid,
   expected_value: euroField, expected_value_vat: euroField, attendees: intField(1, 100000),
   event_date: dateField, event_type: text(100),
+  source: z.enum(t.sourceOptions).optional(),
   owner_id: uuid, stage_id: uuid, kind: z.enum(["event", "individual"]).default("event"),
 });
 
@@ -34,6 +36,7 @@ function toRow(d: z.output<typeof oppSchema>) {
     expected_value_cents: grossCents(d.expected_value, d.expected_value_vat) ?? null,
     vat_cents: d.expected_value === undefined ? null : d.expected_value_vat ?? 0, attendees: d.attendees ?? null,
     event_date: d.event_date ?? null, event_type: d.event_type ?? null,
+    ...(d.source ? { source: d.source } : {}), // assente (creazione): resta quella del contatto
   };
 }
 
@@ -53,8 +56,8 @@ export async function createOpportunity(_: ActionState | null, fd: FormData): Pr
     ? await supabase.from("pipeline_stages").select("id,kind").eq("id", parsed.data.stage_id).eq("pipeline_id", pipe.id).maybeSingle()
     : await supabase.from("pipeline_stages").select("id,kind").eq("pipeline_id", pipe.id).eq("kind", "open").order("position").limit(1).single();
   if (!first) return errorState();
-  const source = parsed.data.contact_id
-    ? (await supabase.from("contacts").select("source").eq("id", parsed.data.contact_id).single()).data?.source ?? "manual" : "manual";
+  const source = normalizeSource(parsed.data.contact_id
+    ? (await supabase.from("contacts").select("source").eq("id", parsed.data.contact_id).single()).data?.source : null);
   const { data, error } = await supabase.from("opportunities")
     .insert({
       ...toRow(parsed.data), pipeline_id: pipe.id, stage_id: first.id, source,
@@ -96,7 +99,7 @@ async function moveToKind(supabase: Awaited<ReturnType<typeof createClient>>, id
 
 const FIELD_SCHEMAS = {
   expected_value: euroField, event_type: text(100), event_date: dateField, attendees: intField(1, 100000), duration: hoursField,
-  source: z.enum([...t.sourceOptions, "unknown"]).optional(),
+  source: z.enum(t.sourceOptions).optional(),
   kind: z.enum(["event", "individual"]).optional(),
   vat: euroField,
 } as const;
@@ -258,7 +261,7 @@ export async function duplicateOpportunity(id: string) {
     stage = first.id;
   }
   const { data: copy } = await supabase.from("opportunities").insert({
-    pipeline_id: o.pipeline_id, stage_id: stage, name: o.name, contact_id: o.contact_id, company_id: o.company_id, owner_id: o.owner_id, source: o.source,
+    pipeline_id: o.pipeline_id, stage_id: stage, name: o.name, contact_id: o.contact_id, company_id: o.company_id, owner_id: o.owner_id, source: normalizeSource(o.source),
     kind: o.kind, event_type: o.event_type, event_date: o.event_date, attendees: o.attendees, duration_minutes: o.duration_minutes,
     expected_value_cents: o.agreed_value_cents ?? o.expected_value_cents, vat_cents: o.vat_cents,
   }).select("id").single();

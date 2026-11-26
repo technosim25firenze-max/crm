@@ -115,13 +115,13 @@ describe("pagamenti e rimborsi", () => {
 
 describe("incassato per origine (aggregati)", () => {
   it("netto IVA e rimborsi; marketing vede gli aggregati ma non i pagamenti; staff no", async () => {
-    const c = (await db.query<{ id: string }>("insert into contacts (first_name, source) values ('Cliente','meta_lead_ads') returning id")).rows[0].id;
+    const c = (await db.query<{ id: string }>("insert into contacts (first_name, source) values ('Cliente','meta_ads') returning id")).rows[0].id;
     await db.query("insert into payments (contact_id, amount_cents, vat_rate, method, paid_at) values ($1,12200,22,'cash','2026-11-10T10:00:00Z')", [c]);
     const p2 = (await db.query<{ id: string }>("insert into payments (contact_id, amount_cents, vat_rate, method, paid_at) values ($1,6100,22,'cash','2026-11-11T10:00:00Z') returning id", [c])).rows[0].id;
     await db.query("insert into payments (kind, refund_of, contact_id, amount_cents, vat_rate, method, paid_at) values ('refund',$1,$2,6100,22,'cash','2026-11-12T10:00:00Z')", [p2, c]);
     await asUser(db, marketing, async () => {
       const r = (await db.query<{ source: string; customers: string; collected_net_cents: string }>(
-        "select * from revenue_by_source('2026-11-01','2026-12-01') where source='meta_lead_ads'")).rows[0];
+        "select * from revenue_by_source('2026-11-01','2026-12-01') where source='meta_ads'")).rows[0];
       expect(Number(r.collected_net_cents)).toBe(10000); // 12200/1.22 = 10000; 6100 incassati e rimborsati si annullano
       expect(Number(r.customers)).toBe(1);
       expect((await db.query("select * from payments")).rows).toHaveLength(0);

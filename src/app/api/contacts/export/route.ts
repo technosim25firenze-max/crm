@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { can, type Role } from "@/lib/permissions";
 import { toCsv } from "@/lib/csv";
 import { t } from "@/lib/i18n/it";
+import { sourceLabel } from "@/lib/sources";
 
 export async function GET() {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export async function GET() {
   const headers = ["Nome", "Cognome", "Email", "Telefono", "Città", "Paese", "Tipo", "Stato", "Origine", "Creato il", "Non contattare"];
   const rows = (data ?? []).map((c) => [c.first_name, c.last_name, c.email, c.phone, c.city, c.country,
     t.kinds[c.kind as keyof typeof t.kinds], t.lifecycle[c.lifecycle as keyof typeof t.lifecycle],
-    t.sources[c.source as keyof typeof t.sources], c.created_at, c.do_not_contact ? "Sì" : "No"]);
+    sourceLabel(c.source), c.created_at, c.do_not_contact ? "Sì" : "No"]);
   return new Response("﻿" + toCsv(headers, rows), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

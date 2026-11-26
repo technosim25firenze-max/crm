@@ -134,7 +134,7 @@ describe("upsert_booking (SQL)", () => {
     const existing = (await db.query<{ id: string }>("insert into contacts (first_name,email,source) values ('Anna','anna@example.com','walk_in') returning id")).rows[0].id;
     const id = await up(fromSample({ external_id: "bkg_2", customer_name: "Anna", customer_email: "ANNA@example.com", checkout_id: "chk_2", paid_cents: 0, payment_status: "unpaid" }));
     expect((await db.query<{ contact_id: string }>("select contact_id from bookings where id=$1", [id])).rows[0].contact_id).toBe(existing);
-    expect((await db.query<{ source: string }>("select source from contacts where id=$1", [existing])).rows[0].source).toBe("walk_in");
+    expect((await db.query<{ source: string }>("select source from contacts where id=$1", [existing])).rows[0].source).toBe("other"); // il vecchio "walk_in" viene normalizzato, non riscritto dalla prenotazione
   });
   it("traffico a pagamento → Meta Ads / marketing; senza UTM → accesso diretto", async () => {
     await up(fromSample({ external_id: "bkg_3", customer_name: "Paolo", customer_surname: "Neri", customer_email: "p@example.com", customer_phone: null, paid_cents: 0, payment_status: "unpaid",
